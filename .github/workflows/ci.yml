@@ -1,0 +1,70 @@
+# Copyright (c) 2026 The University of Texas at Austin and B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install ruff
+        run: pip install ruff
+      # No --select here on purpose: the rule set lives in pyproject.toml so the
+      # repo lints identically in CI and on a laptop.
+      - name: Run ruff
+        run: ruff check src/
+
+  unit-tests:
+    name: Unit Tests (${{ matrix.python-version }})
+    needs: lint
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      # Deliberately NOT installing axiom. The whole suite runs with only
+      # langchain-core present, because every platform dependency is injectable.
+      # If a test ever needs axiom installed, that is a design regression here,
+      # not a CI gap — fix the seam rather than the workflow.
+      - name: Install (test extras, no platform)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+      - name: Run unit tests
+        run: pytest -q --tb=short --timeout=60
+
+  graph-integration:
+    name: Real LangGraph
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install with langgraph
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      # Proves AxiomChatModel satisfies the contract a real prebuilt graph
+      # expects, which unit tests against langchain-core alone cannot show.
+      - name: Build and run a graph against a stub gateway
+        run: pytest -q -m graph --tb=short --timeout=120

@@ -28,10 +28,16 @@ dependencies = [
 
 [project.optional-dependencies]
 graph = ["langgraph >= 0.2"]
-dev = ["pytest", "ruff", "langgraph >= 0.2"]
+test = ["pytest", "pytest-timeout", "ruff"]
+dev = ["axiom-ext-langgraph[graph,test]"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/axiom_ext_langgraph"]
+
+[tool.pytest.ini_options]
+markers = [
+    "graph: exercises a real LangGraph, not just langchain-core",
+]
 
 [tool.ruff]
 line-length = 100
