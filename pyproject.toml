@@ -1,0 +1,44 @@
+# Copyright (c) 2026 The University of Texas at Austin and B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "axiom-ext-langgraph"
+version = "0.1.0"
+description = "Run LangChain and LangGraph through the Axiom gateway, so a foreign runtime inherits one gateway, one tool registry and one identity"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "The University of Texas at Austin" },
+    { name = "B-Tree Labs", email = "engineering@b-tree-labs.dev" },
+]
+keywords = ["axiom", "langchain", "langgraph", "llm", "agents"]
+
+# langchain-core is the whole point of this package, so it is a hard dependency
+# *here*. It is deliberately not a dependency of Axiom: this package exists so
+# that hosting LangGraph costs the platform nothing.
+dependencies = [
+    "axiom-os-lm >= 0.15",
+    "langchain-core >= 0.3",
+]
+
+[project.optional-dependencies]
+graph = ["langgraph >= 0.2"]
+dev = ["pytest", "ruff", "langgraph >= 0.2"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/axiom_ext_langgraph"]
+
+[tool.ruff]
+line-length = 100
+# Rules are selected explicitly so this repo lints the same way wherever it is
+# checked out, rather than inheriting from whatever directory it sits under
+# (ADR-044 D2.3, independent CI).
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["E501"]  # line length is enforced by the formatter, not the linter

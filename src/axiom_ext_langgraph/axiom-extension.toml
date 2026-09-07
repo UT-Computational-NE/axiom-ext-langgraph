@@ -1,0 +1,53 @@
+# Copyright (c) 2026 The University of Texas at Austin and B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# LangGraph/LangChain harness shim. Per ADR-044's rule of generality this is a
+# standalone repository: it is specific to one foreign runtime, not useful to
+# every consumer, and keeping it out of the platform is the point — hosting
+# LangGraph must cost Axiom nothing in its own dependency graph.
+#
+# Per ADR-099 this is the *one shim* for LangChain/LangGraph and declares every
+# surface it touches.
+
+[extension]
+name = "langgraph"
+version = "0.1.0"
+description = "Run LangChain/LangGraph through the Axiom gateway"
+license = "Apache-2.0"
+owner = "ut-austin"
+aeos_version = "0.1.0"
+builtin = false
+
+[extension.compatibility]
+python = ">= 3.11"
+axiom = ">= 0.15"
+
+[extension.distribution]
+channel = "public"
+license_check = false
+export_control_required = false
+
+# --- ADR-099 D1: declared surfaces, each with a mode ---
+# read                   : we read it, never write
+# write-extension-point  : documented user-config surface
+# never                  : we do not touch it
+
+[[shim.surface]]
+name = "axiom.llm.gateway"
+mode = "read"
+note = "Every model call is translated through the gateway, so tier routing, fail-closed export-control enforcement, the vault and audit apply. Not a passthrough."
+
+[[shim.surface]]
+name = "axiom.infra.skills.SkillRegistry"
+mode = "read"
+note = "Tools are generated from registered skills. The shim never registers skills of its own."
+
+[[shim.surface]]
+name = "axiom.governance actor context"
+mode = "write-extension-point"
+note = "The shim binds the current actor for the duration of a graph run and restores the previous value after."
+
+[[shim.surface]]
+name = "langgraph checkpoint store"
+mode = "never"
+note = "Not implemented here on purpose. A durable, resumable checkpoint backed by the Axiom store is a platform primitive with an owner; see AGENTS.md."
