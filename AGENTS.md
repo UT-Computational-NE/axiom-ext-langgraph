@@ -100,12 +100,14 @@ A tag is not an identity, and a fake attribution is worse than an absent one.
 
 ## Conventions
 
-**Read the API, do not guess at it.** This shim exists because a sibling bridge
-was written against an imagined interface — it called `list_all()` on a module
-that has no such attribute, returned an empty list through a default lambda, and
-failed silently for months. Every call here is written against source that was
-actually opened. If something you need does not exist, say so at runtime and
-return nothing.
+**Read the API, do not guess at it.** Every call here is written against source
+that was actually opened, and the failure mode that discipline avoids is a
+specific one: code written against an imagined interface calls a method that
+does not exist, through a `getattr` default that swallows the miss, so it
+returns empty results and raises nothing. It passes review and it passes CI. If
+an interface you need does not exist, say so at runtime and return nothing —
+never guess at a second shape, and never write a test that mocks an API you have
+not opened.
 
 **Tests take their dependencies as parameters.** `tool_from_skill` takes a
 registry; `AxiomChatModel` takes a `gateway_factory`; `acting_as` resolves
