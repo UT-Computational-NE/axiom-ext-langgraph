@@ -196,10 +196,12 @@ def test_the_example_prefers_the_current_agent_constructor():
     """Nobody should learn a deprecated idiom from a file meant to teach.
 
     ``create_react_agent`` moved to ``langchain.agents.create_agent`` in
-    LangGraph 1.0 and goes away in 2.0. The example prefers the new one and
-    falls back only because this package's own ``[graph]`` extra installs
-    ``langgraph`` without ``langchain``, so the new constructor is not
-    guaranteed present in an environment that satisfies the declared deps.
+    LangChain 1.0 and goes away in LangGraph 2.0. The example prefers the new
+    one and falls back only for an environment carrying ``langgraph`` alone.
+
+    This assertion was dormant until ``[graph]`` began installing ``langchain``:
+    the import below failed, the test returned early, and the preference it
+    exists to pin was never checked.
     """
     from axiom_ext_langgraph.examples.with_tools import _agent_constructor
 

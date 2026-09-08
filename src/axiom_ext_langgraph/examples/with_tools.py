@@ -55,15 +55,18 @@ def _agent_constructor():
     """The current agent constructor, falling back to the deprecated one.
 
     ``create_react_agent`` moved from ``langgraph.prebuilt`` to
-    ``langchain.agents.create_agent`` in LangGraph 1.0 and is slated for removal
-    in 2.0. Prefer the new one so nobody learns the old idiom from this file,
-    but fall back rather than hard-fail: the ``[graph]`` extra installs
-    ``langgraph`` and not ``langchain``, so the new constructor is not
-    guaranteed present in an environment that satisfies this package's own
-    declared dependencies.
+    ``langchain.agents.create_agent`` in LangChain 1.0 and is slated for removal
+    in LangGraph 2.0. Prefer the new one so nobody learns a dead idiom here.
 
-    That mismatch is worth fixing in ``pyproject.toml`` rather than papering
-    over here, and this docstring is the note saying so.
+    The ``[graph]`` extra now installs ``langchain`` too, so the preferred
+    branch is the one that actually runs under test. It did not before: the
+    extra pulled ``langgraph`` alone, the import failed, and the test that
+    asserts we prefer the current constructor returned early instead of
+    asserting. The fallback stays for an environment that has only ``langgraph``.
+
+    Verified against langchain 1.4.0: ``create_agent(model, tools, ...)``
+    returns a ``CompiledStateGraph``, so the positional call below is right and
+    a LangChain agent is a LangGraph graph.
     """
     try:
         from langchain.agents import create_agent
