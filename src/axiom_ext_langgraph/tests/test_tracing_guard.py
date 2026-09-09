@@ -102,3 +102,27 @@ def test_importing_the_package_neutralizes_the_real_process_env() -> None:
     assert "LANGSMITH_API_KEY" not in survivors
     assert survivors["LANGSMITH_TRACING"] == "false"
     assert survivors["LANGCHAIN_TRACING_V2"] == "false"
+
+
+def test_generate_re_enforces_before_egress(monkeypatch) -> None:
+    # The import guard covers only the inherited environment. langsmith reads
+    # env at Client construction — lazily, on the first trace — so a variable
+    # set after import would re-enable egress. The invocation path closes it.
+    from langchain_core.messages import HumanMessage
+
+    from axiom_ext_langgraph.chat_model import AxiomChatModel
+    from axiom_ext_langgraph.tests.test_chat_model import FakeGateway
+
+    class _AssertingGateway(FakeGateway):
+        def complete_with_tools(self, **kwargs: object):
+            assert "LANGSMITH_API_KEY" not in os.environ
+            return super().complete_with_tools(**kwargs)
+
+    model = AxiomChatModel(gateway_factory=_AssertingGateway)
+    monkeypatch.setenv("LANGSMITH_API_KEY", "ls-set-after-import")
+    monkeypatch.setenv("LANGCHAIN_TRACING_V2", "true")
+
+    model.invoke([HumanMessage(content="hi")])
+
+    assert "LANGSMITH_API_KEY" not in os.environ
+    assert os.environ["LANGCHAIN_TRACING_V2"] == "false"

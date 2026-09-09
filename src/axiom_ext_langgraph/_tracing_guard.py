@@ -17,6 +17,14 @@ The rule is the prefix, not an inventory: every ``LANGSMITH_*`` and
 ships. Turning external tracing on is still possible — by setting
 ``AXIOM_ALLOW_EXTERNAL_TRACING`` where it can be seen and reviewed, which is
 the point.
+
+Scope, stated precisely: the import-time call closes the *inherited-environment*
+path. langsmith reads env at ``Client`` construction — lazily, on the first
+trace — so a variable set after import would re-enable egress; invocation-path
+call sites (``AxiomChatModel._generate``, and graph runners) re-enforce at the
+last moment to close that window. What no environment guard can stop is code
+that constructs a tracer or ``Client`` explicitly — that is a code-review
+boundary, not an environment one.
 """
 
 from __future__ import annotations
