@@ -25,10 +25,21 @@ capabilities, so the whole port would fail with no message at all.
 
 ``graphs`` needs nothing but the standard library and Axiom. It stays reachable
 on its own.
+
+One import stays eager, and must: external telemetry. The tracing guard's
+module body strips LangChain-family configuration from the process, and it has
+to run before anything that reads it. Laziness everywhere else makes that
+easier rather than harder — with no sibling imported at load time, the guard is
+the only thing that has run when it does its work.
 """
 
 import importlib
 from typing import TYPE_CHECKING
+
+# Eager, and first. Its module body strips LangChain-family env config before
+# any sibling can import langchain and read it. Everything else below is lazy,
+# which means nothing else has been imported by the time this lands.
+from axiom_ext_langgraph._tracing_guard import enforce_no_external_tracing
 
 _LAZY = {
     "ROUTING_TIER_ENV": "axiom_ext_langgraph.chat_model",
@@ -93,6 +104,7 @@ __all__ = [
     "SkillInvocationError",
     "acting_as",
     "current_actor",
+    "enforce_no_external_tracing",
     "read_langgraph_manifest",
     "skill_from_graph",
     "skills_from_langgraph_json",

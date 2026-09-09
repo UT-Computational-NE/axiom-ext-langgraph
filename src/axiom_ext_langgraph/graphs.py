@@ -63,6 +63,7 @@ from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from axiom_ext_langgraph._tracing_guard import enforce_no_external_tracing
 from axiom_ext_langgraph.actor import acting_as
 
 __all__ = [
@@ -202,6 +203,14 @@ def skill_from_graph(
             }}
         else:
             state = dict(params)
+
+        # Again, here, at the last moment before the graph could emit anything.
+        # The import-time guard covers the environment this process INHERITED;
+        # it cannot cover a variable set afterwards, and langsmith reads the
+        # environment when its client is constructed — which happens on the
+        # first trace, long after import. Anything that sets a key between
+        # package import and this call would otherwise re-open the path.
+        enforce_no_external_tracing()
 
         try:
             with acting_as(_principal_of(ctx)), resolved_graph(graph) as runnable:

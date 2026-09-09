@@ -4,6 +4,7 @@
 """A graph becoming an Axiom capability."""
 
 import json
+import os
 
 import pytest
 
@@ -352,3 +353,70 @@ class TestWhateverShapeTheManifestNames:
         result = skill_from_graph(42)({"prompt": "x"}, None)
         assert not result.ok
         assert "neither a graph" in result.errors[0]
+
+
+class TestTracingIsNeutralisedOnTheInvocationPath:
+    """The import-time guard covers what the process inherited. Not this.
+
+    langsmith reads the environment when its client is constructed, and that
+    happens on the first trace — long after import. So anything setting a key
+    between package import and a graph running would re-open the path: a
+    service that imports at startup and reads config later, a notebook, a test
+    fixture that sets env per case.
+    """
+
+    def test_a_key_set_after_import_is_gone_before_the_graph_runs(self, monkeypatch):
+        monkeypatch.setenv("LANGSMITH_API_KEY", "set-after-import")
+        monkeypatch.setenv("LANGCHAIN_TRACING_V2", "true")
+
+        seen = {}
+
+        class Watching:
+            def invoke(self, state, *a, **k):
+                seen["key"] = os.environ.get("LANGSMITH_API_KEY")
+                seen["tracing"] = os.environ.get("LANGCHAIN_TRACING_V2")
+                return {"ok": True}
+
+        skill_from_graph(Watching())({"prompt": "x"}, None)
+
+        assert seen["key"] is None
+        assert seen["tracing"] == "false"
+
+    def test_it_runs_before_the_graph_not_after(self, monkeypatch):
+        """After would be useless — the trace would already have left."""
+        monkeypatch.setenv("LANGSMITH_API_KEY", "leaked")
+        order = []
+
+        import axiom_ext_langgraph.graphs as graphs_module
+
+        real = graphs_module.enforce_no_external_tracing
+        monkeypatch.setattr(
+            graphs_module,
+            "enforce_no_external_tracing",
+            lambda *a, **k: (order.append("guard"), real(*a, **k))[1],
+        )
+
+        class Recording:
+            def invoke(self, state, *a, **k):
+                order.append("invoke")
+                return {}
+
+        skill_from_graph(Recording())({"prompt": "x"}, None)
+
+        assert order == ["guard", "invoke"]
+
+    def test_the_escape_hatch_is_still_honoured(self, monkeypatch):
+        """A deliberate opt-in must not be silently overridden per call."""
+        monkeypatch.setenv("AXIOM_ALLOW_EXTERNAL_TRACING", "1")
+        monkeypatch.setenv("LANGSMITH_API_KEY", "deliberate")
+
+        seen = {}
+
+        class Watching:
+            def invoke(self, state, *a, **k):
+                seen["key"] = os.environ.get("LANGSMITH_API_KEY")
+                return {}
+
+        skill_from_graph(Watching())({"prompt": "x"}, None)
+
+        assert seen["key"] == "deliberate"

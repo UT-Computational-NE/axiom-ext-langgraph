@@ -45,6 +45,8 @@ from langchain_core.tools import BaseTool
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from pydantic import Field, PrivateAttr
 
+from axiom_ext_langgraph._tracing_guard import enforce_no_external_tracing
+
 __all__ = ["ROUTING_TIER_ENV", "AxiomChatModel", "AxiomGatewayUnavailable"]
 
 #: Pin every call from this process to a routing tier. Mirrors
@@ -232,6 +234,13 @@ class AxiomChatModel(BaseChatModel):
         run_manager: CallbackManagerForLLMRun | None = None,
         **kwargs: Any,
     ) -> ChatResult:
+        # Re-enforce at the last moment before a trace could leave: the import
+        # guard only covers the inherited environment, and langsmith reads env
+        # at Client construction — lazily, on the first trace, which is after
+        # import essentially always. A variable set between import and this
+        # call would otherwise re-enable egress.
+        enforce_no_external_tracing()
+
         system, history = _to_gateway_messages(messages)
 
         # Pass the bound actor explicitly rather than leaning on the gateway's
