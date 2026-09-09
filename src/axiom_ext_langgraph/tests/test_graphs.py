@@ -243,3 +243,112 @@ class TestAgainstARealCompiledGraph:
         assert hasattr(CompiledStateGraph, "invoke"), (
             "the duck type this module adapts"
         )
+
+
+class TestPathsARealManifestCarries:
+    """Found by probing the port the way a stranger would use it.
+
+    Each of these registered without complaint and produced a module path that
+    imports nothing, so the failure arrived at call time as a missing module
+    with no hint that the manifest was the cause.
+    """
+
+    @pytest.mark.parametrize(
+        "declared",
+        [
+            "./src/pkg/graph.py:g",
+            ".\\src\\pkg\\graph.py:g",
+            "./src\\pkg/graph.py:g",
+            "src/pkg/graph.py:g",
+        ],
+    )
+    def test_every_separator_a_manifest_might_use(self, declared):
+        """A manifest written on Windows carries backslashes; a hand-edited one
+        can carry both."""
+        assert GraphPort("g", declared).entry == "pkg.graph:g"
+
+    def test_a_path_above_the_project_is_refused_not_mangled(self):
+        """``../shared/graph.py`` became ``...shared.graph``: not a module path,
+        not an error, not anything. Python has no dotted form for a parent
+        directory, so this can only be refused."""
+        with pytest.raises(LangGraphManifestError, match="above the project"):
+            _ = GraphPort("g", "../shared/graph.py:graph").entry
+
+    def test_a_dotted_attribute_is_carried_through(self):
+        assert GraphPort("g", "./a.py:builders.deck").entry == "a:builders.deck"
+
+
+class TestWhateverShapeTheManifestNames:
+    """``langgraph.json`` does not only name compiled graphs.
+
+    Its schema says a value may point at "(async) context managers that accept a
+    single configuration argument and return a pregel object", and plain
+    factories are common besides. Calling ``.invoke`` on those gave
+    ``'function' object has no attribute 'invoke'`` — true, and useless.
+    """
+
+    def test_a_compiled_graph(self):
+        assert skill_from_graph(FakeGraph())({"prompt": "x"}, None).ok
+
+    def test_a_factory_taking_a_config(self):
+        assert skill_from_graph(lambda config=None: FakeGraph())({"prompt": "x"}, None).ok
+
+    def test_a_factory_taking_nothing(self):
+        assert skill_from_graph(lambda: FakeGraph())({"prompt": "x"}, None).ok
+
+    def test_a_context_manager(self):
+        from contextlib import contextmanager
+
+        @contextmanager
+        def cm():
+            yield FakeGraph()
+
+        assert skill_from_graph(cm())({"prompt": "x"}, None).ok
+
+    def test_the_context_manager_is_exited(self):
+        """A factory holding a connection wants it closed when the run ends."""
+        from contextlib import contextmanager
+
+        closed = []
+
+        @contextmanager
+        def cm():
+            try:
+                yield FakeGraph()
+            finally:
+                closed.append(True)
+
+        skill_from_graph(cm())({"prompt": "x"}, None)
+        assert closed == [True]
+
+    def test_a_factory_is_called_per_run_not_cached(self):
+        """Caching the first result would make every later run reuse the first
+        run's configuration."""
+        made = []
+
+        def factory(config=None):
+            made.append(1)
+            return FakeGraph()
+
+        run = skill_from_graph(factory)
+        run({"prompt": "a"}, None)
+        run({"prompt": "b"}, None)
+        assert len(made) == 2
+
+    def test_an_async_context_manager_is_refused_with_a_reason(self):
+        """Entering one needs an event loop this path does not have. Refusing
+        beats failing deeper in, further from the cause."""
+        from contextlib import asynccontextmanager
+
+        @asynccontextmanager
+        async def acm():
+            yield FakeGraph()
+
+        result = skill_from_graph(acm())({"prompt": "x"}, None)
+        assert not result.ok
+        assert "async context manager" in result.errors[0]
+
+    def test_something_that_is_not_a_graph_at_all_says_so(self):
+        result = skill_from_graph(42)({"prompt": "x"}, None)
+        assert not result.ok
+        assert "neither a graph" in result.errors[0]

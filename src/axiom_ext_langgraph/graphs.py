@@ -59,13 +59,15 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Mapping
-from pathlib import Path
+from contextlib import contextmanager
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from axiom_ext_langgraph.actor import acting_as
 
 __all__ = [
     "GraphPort",
+    "GraphResolutionError",
     "LangGraphManifestError",
     "read_langgraph_manifest",
     "skill_from_graph",
@@ -93,6 +95,77 @@ class LangGraphManifestError(ValueError):
 
 def _principal_of(ctx: Any) -> Any:
     return getattr(ctx, "principal", None)
+
+
+
+class GraphResolutionError(TypeError):
+    """The declared object is not a graph and could not be made into one."""
+
+
+@contextmanager
+def resolved_graph(obj: Any):
+    """Yield something with ``.invoke``, whatever shape the manifest named.
+
+    ``langgraph.json`` does not only name compiled graphs. Its own schema says a
+    value may point at "(async) context managers that accept a single
+    configuration argument and return a pregel object", and plain factories are
+    common besides. Calling ``.invoke`` on those gives
+    ``'function' object has no attribute 'invoke'``, which is true and useless.
+
+    Three shapes, in the order they are cheapest to detect:
+
+    **Already a graph.** Yielded as-is.
+
+    **A context manager.** Entered per call and exited after, because that is
+    what a context manager is for — a factory holding a connection wants it
+    closed when the run ends, not when the process does.
+
+    **A factory.** Called per call, not once at import. A factory exists to be
+    called with a config, and caching its first result would quietly make every
+    later run reuse the first run's configuration.
+
+    An async context manager is refused rather than half-supported: entering one
+    needs an event loop this synchronous path does not have, and pretending
+    otherwise would fail deeper in, further from the cause.
+    """
+    if hasattr(obj, "invoke"):
+        yield obj
+        return
+
+    if hasattr(obj, "__aenter__"):
+        raise GraphResolutionError(
+            "the manifest names an async context manager, which this synchronous "
+            "path cannot enter. Expose a compiled graph, or a synchronous factory, "
+            "and the port will use it."
+        )
+
+    if hasattr(obj, "__enter__"):
+        with obj as inner:
+            if not hasattr(inner, "invoke"):
+                raise GraphResolutionError(
+                    f"the context manager yielded {type(inner).__name__}, which has "
+                    "no invoke(). A graph, or something with the same shape, is "
+                    "what is expected."
+                )
+            yield inner
+        return
+
+    if callable(obj):
+        try:
+            produced = obj()
+        except TypeError:
+            # The schema's form takes one config argument. Passing None is the
+            # honest neutral: this path has no RunnableConfig to give it.
+            produced = obj(None)
+        with resolved_graph(produced) as inner:
+            yield inner
+        return
+
+    raise GraphResolutionError(
+        f"{type(obj).__name__} is neither a graph, a factory, nor a context "
+        "manager. The manifest should name a compiled graph or something that "
+        "returns one."
+    )
 
 
 def skill_from_graph(
@@ -131,8 +204,8 @@ def skill_from_graph(
             state = dict(params)
 
         try:
-            with acting_as(_principal_of(ctx)):
-                final = graph.invoke(state)
+            with acting_as(_principal_of(ctx)), resolved_graph(graph) as runnable:
+                final = runnable.invoke(state)
         except Exception as exc:
             log.exception("graph capability failed")
             return SkillResult(ok=False, errors=[f"{type(exc).__name__}: {exc}"])
@@ -180,11 +253,29 @@ class GraphPort:
                 f"graph {self.name!r} declares {self.path!r}, which names no object. "
                 "LangGraph's form is 'path/to/file.py:object'."
             )
+
+        # A manifest written on Windows carries backslashes, and a hand-edited
+        # one can carry both. Splitting on "/" alone turned
+        # ".\\src\\pkg\\graph.py:g" into the module ".\\src\\pkg\\graph", which
+        # imports nothing and says so only when somebody finally calls it.
+        normalized = file_part.replace("\\", "/")
+
         parts = [
             part
-            for part in Path(file_part).with_suffix("").as_posix().split("/")
+            for part in PurePosixPath(normalized).with_suffix("").as_posix().split("/")
             if part not in ("", ".")
         ]
+        if ".." in parts:
+            # "../shared/graph.py" became "...shared.graph", which is not a
+            # module path, not an error, and not anything. Python has no dotted
+            # spelling for "up one directory", so this cannot be translated —
+            # only refused, with the reason.
+            raise LangGraphManifestError(
+                f"graph {self.name!r} declares {self.path!r}, which points above the "
+                "project. Axiom resolves an import path, and there is no dotted form "
+                "for a parent directory. Move the graph into the package, or import "
+                "it there and point the manifest at that name."
+            )
         if parts and parts[0] == SOURCE_ROOT:
             parts = parts[1:]
         if not parts:
@@ -335,7 +426,13 @@ def _lazy_graph_skill(port: GraphPort) -> Callable[[dict[str, Any], Any], Any]:
             module_path, _, attr = port.entry.partition(":")
             try:
                 module = importlib.import_module(module_path)
-                graph = getattr(module, attr)
+                # ``file.py:builders.graph`` is legal in a manifest, and
+                # ``getattr(module, "builders.graph")`` does not traverse it —
+                # it looks for one attribute literally named with a dot, finds
+                # nothing, and reports a missing attribute that plainly exists.
+                graph = module
+                for piece in attr.split("."):
+                    graph = getattr(graph, piece)
             except Exception as exc:
                 return SkillResult(
                     ok=False,
