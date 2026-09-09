@@ -21,6 +21,13 @@ from axiom_ext_langgraph.chat_model import (
     AxiomChatModel,
     AxiomGatewayUnavailable,
 )
+from axiom_ext_langgraph.graphs import (
+    GraphPort,
+    LangGraphManifestError,
+    read_langgraph_manifest,
+    skill_from_graph,
+    skills_from_langgraph_json,
+)
 from axiom_ext_langgraph.tools import (
     SkillInvocationError,
     tool_from_skill,
@@ -31,9 +38,14 @@ __all__ = [
     "ROUTING_TIER_ENV",
     "AxiomChatModel",
     "AxiomGatewayUnavailable",
+    "GraphPort",
+    "LangGraphManifestError",
     "SkillInvocationError",
     "acting_as",
     "current_actor",
+    "read_langgraph_manifest",
+    "skill_from_graph",
+    "skills_from_langgraph_json",
     "tool_from_skill",
     "tools_from_registry",
 ]
