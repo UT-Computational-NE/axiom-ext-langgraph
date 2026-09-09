@@ -298,3 +298,108 @@ class TestTheHookIsTheOneThePlatformActuallyCalls:
         lines = "\n".join(report(manifest(), "moose", "moose"))
         assert "axi ext init" in lines
         assert "bind_default" in lines
+
+
+class TestWiringTheExtension:
+    """``--into`` exists because the manual version fails silently.
+
+    ``axi ext init`` scaffolds ``skills/`` with a ``.gitkeep`` and no
+    ``__init__.py``. Dropping a module in beside it leaves the directory
+    importing as a namespace package with no ``bind_default`` on it, and the
+    platform's loader returns no capabilities without raising. Walking the
+    documented steps by hand produced exactly that, which is how this was found.
+    """
+
+    def _ext(self, tmp_path):
+        pkg = tmp_path / "demoagent" / "demoagent"
+        (pkg / "skills").mkdir(parents=True)
+        (pkg / "skills" / ".gitkeep").write_text("")
+        return pkg
+
+    def test_it_writes_the_module_and_creates_the_init(self, tmp_path, manifest):
+        from axiom_ext_langgraph.port import install_into_extension
+
+        pkg = self._ext(tmp_path)
+        install_into_extension(
+            pkg, build_registration_module(manifest(), "moose"), "moose"
+        )
+
+        assert (pkg / "skills" / "moose_graphs.py").is_file()
+        assert "from .moose_graphs import bind_default" in (
+            pkg / "skills" / "__init__.py"
+        ).read_text()
+
+    def test_bind_default_is_reachable_on_the_package(self, tmp_path):
+        """The property the platform's loader actually checks."""
+        import importlib.util
+        import sys
+
+        from axiom_ext_langgraph.port import install_into_extension
+
+        root = tmp_path / "proj"
+        pkg = root / "demoagent"
+        (pkg / "skills").mkdir(parents=True)
+        (pkg / "__init__.py").write_text("")
+        (root / "langgraph.json").write_text(
+            json.dumps({"graphs": {"deck": "./demoagent/g.py:graph"}})
+        )
+        (pkg / "g.py").write_text("graph = None\n")
+        install_into_extension(
+            pkg,
+            build_registration_module(root / "langgraph.json", "deckns"),
+            "deckns",
+        )
+
+        sys.path.insert(0, str(root))
+        try:
+            spec = importlib.util.spec_from_file_location(
+                "wired_skills", pkg / "skills" / "__init__.py"
+            )
+            module = importlib.util.module_from_spec(spec)
+            sys.modules["wired_skills"] = module
+            spec.loader.exec_module(module)
+            assert hasattr(module, "bind_default")
+        finally:
+            sys.path.remove(str(root))
+            sys.modules.pop("wired_skills", None)
+
+    def test_it_appends_rather_than_clobbering_an_existing_init(self, tmp_path, manifest):
+        from axiom_ext_langgraph.port import install_into_extension
+
+        pkg = self._ext(tmp_path)
+        (pkg / "skills" / "__init__.py").write_text("EXISTING = 1\n")
+        install_into_extension(
+            pkg, build_registration_module(manifest(), "moose"), "moose"
+        )
+
+        text = (pkg / "skills" / "__init__.py").read_text()
+        assert "EXISTING = 1" in text
+        assert "from .moose_graphs import" in text
+
+    def test_it_refuses_to_shadow_an_extension_that_binds_its_own(self, tmp_path, manifest):
+        """Two bind_defaults in one module means the second wins and whatever
+        the extension registered before is silently dropped."""
+        from axiom_ext_langgraph.port import install_into_extension
+
+        pkg = self._ext(tmp_path)
+        (pkg / "skills" / "__init__.py").write_text("def bind_default():\n    ...\n")
+
+        notes = install_into_extension(
+            pkg, build_registration_module(manifest(), "moose"), "moose"
+        )
+
+        assert any("NOT wired" in n for n in notes)
+        assert "from .moose_graphs import" not in (
+            pkg / "skills" / "__init__.py"
+        ).read_text()
+
+    def test_running_it_twice_is_idempotent(self, tmp_path, manifest):
+        from axiom_ext_langgraph.port import install_into_extension
+
+        pkg = self._ext(tmp_path)
+        module = build_registration_module(manifest(), "moose")
+        install_into_extension(pkg, module, "moose")
+        install_into_extension(pkg, module, "moose")
+
+        text = (pkg / "skills" / "__init__.py").read_text()
+        assert text.count("from .moose_graphs import") == 1

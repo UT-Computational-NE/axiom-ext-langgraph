@@ -50,7 +50,15 @@ from axiom_ext_langgraph.graphs import (
     read_langgraph_manifest,
 )
 
-__all__ = ["build_registration_module", "has_missing_targets", "main", "report"]
+__all__ = [
+    "build_registration_module",
+    "has_missing_targets",
+    "install_into_extension",
+    "main",
+    "report",
+]
+
+_INIT_MARKER = "# axiom_ext_langgraph: generated graph capabilities"
 
 _MODULE_TEMPLATE = '''"""Axiom capability registration, generated from langgraph.json.
 
@@ -166,15 +174,15 @@ def report(manifest: Path, namespace: str, distribution: str) -> list[str]:
         "",
         "How the platform finds them:",
         "",
-        "  1. Your project has to be an AEOS extension — a directory with an",
-        f"     axiom-extension.toml. Scaffold one with:  axi ext init {distribution}",
+        f"  axi ext init {distribution}",
+        f"  python -m axiom_ext_langgraph.port {manifest.name} \\",
+        f"      --namespace {namespace} --into {distribution}/{distribution}",
         "",
-        "  2. Put the generated module in that extension's skills package, as",
-        f"     <ext>/skills/{namespace}_graphs.py, and import it from",
-        "     <ext>/skills/__init__.py so bind_default() is reachable there.",
-        "",
-        "  3. That is the whole hook. The platform imports the skills package and",
-        "     calls bind_default(). There is no entry point to add.",
+        "  --into writes the module into <ext>/skills/ AND wires __init__.py.",
+        "  That second step is not optional and is the one that fails silently:",
+        "  axi ext init scaffolds skills/ with a .gitkeep and no __init__.py, so",
+        "  the directory imports as a namespace package, the platform finds no",
+        "  bind_default on it, and returns no capabilities without an error.",
         "",
         "Discovery is by directory, not by entry point. A distribution that is not",
         "laid out as an extension is never scanned, and nothing will say so — the",
@@ -225,6 +233,53 @@ def report(manifest: Path, namespace: str, distribution: str) -> list[str]:
     return lines
 
 
+def install_into_extension(
+    package_dir: Path, module_text: str, namespace: str
+) -> list[str]:
+    """Write the module into an extension's ``skills`` package and wire it up.
+
+    Returns what it did, for the caller to print.
+
+    The wiring is the part that has to happen and is easy to miss. ``axi ext
+    init`` scaffolds ``skills/`` with a ``.gitkeep`` and no ``__init__.py``, so
+    the directory imports as a namespace package: the platform's loader does
+    ``import_module("<ext>.skills")``, finds no ``bind_default`` on it, and
+    returns nothing. No error, no capability, no clue. Dropping a module in
+    beside the ``.gitkeep`` is not enough, and telling somebody to "import it
+    from ``__init__.py``" is not enough either when the file does not exist.
+    """
+    done: list[str] = []
+    skills = package_dir / "skills"
+    skills.mkdir(parents=True, exist_ok=True)
+
+    module_name = f"{namespace}_graphs"
+    (skills / f"{module_name}.py").write_text(module_text, encoding="utf-8")
+    done.append(f"wrote {skills / (module_name + '.py')}")
+
+    init = skills / "__init__.py"
+    existing = init.read_text(encoding="utf-8") if init.is_file() else ""
+
+    if "def bind_default" in existing:
+        # This extension already binds its own skills. Appending an import
+        # would give the module two functions of that name and the second would
+        # win, silently dropping whatever the extension registered before.
+        done.append(
+            f"NOT wired: {init} already defines bind_default. Call "
+            f"{module_name}.register_all(registry) from inside it instead."
+        )
+        return done
+
+    line = f"from .{module_name} import bind_default, register_all  # noqa: F401"
+    if line in existing:
+        done.append(f"{init} already imports it")
+        return done
+
+    prefix = existing.rstrip("\n") + "\n\n" if existing.strip() else ""
+    init.write_text(f"{prefix}{_INIT_MARKER}\n{line}\n", encoding="utf-8")
+    done.append(f"{'patched' if existing.strip() else 'created'} {init}")
+    return done
+
+
 def has_missing_targets(manifest: Path) -> bool:
     """Whether any declared graph points at a file that is not there."""
     root = Path(manifest).parent
@@ -256,7 +311,17 @@ def main(argv: list[str] | None = None) -> int:
         "--write",
         type=Path,
         default=None,
-        help="write the registration module here instead of printing it",
+        help="write the registration module to this path instead of printing it",
+    )
+    parser.add_argument(
+        "--into",
+        type=Path,
+        default=None,
+        help=(
+            "an extension's package directory (the one containing skills/). "
+            "Writes the module AND wires skills/__init__.py, which is the step "
+            "that otherwise fails silently."
+        ),
     )
     args = parser.parse_args(argv)
 
@@ -279,6 +344,13 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     module = build_registration_module(args.manifest, args.namespace)
+
+    if args.into:
+        print()
+        for note in install_into_extension(args.into, module, args.namespace):
+            print(f"  {note}")
+        return 0
+
     if args.write:
         args.write.parent.mkdir(parents=True, exist_ok=True)
         args.write.write_text(module, encoding="utf-8")
