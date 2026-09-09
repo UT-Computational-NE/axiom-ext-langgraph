@@ -36,16 +36,21 @@ class TestTheReport:
         assert "moose.agent" in lines
         assert "moose_agent.agent:graph" in lines
 
-    def test_it_prints_both_required_entry_points(self, manifest):
-        """One alone silently does nothing."""
+    def test_it_explains_how_the_platform_finds_them(self, manifest):
+        """This used to print two entry points, one of which does not exist.
+
+        ``axiom.skills`` is read by nothing. Following the old instructions
+        produced a port that succeeded and capabilities that never registered.
+        """
         lines = "\n".join(report(manifest(), "moose", "moose"))
 
-        assert "axiom.portfolio_member" in lines
-        assert "axiom.skills" in lines
+        assert "axi ext init" in lines
+        assert "bind_default" in lines
+        assert "by directory, not by entry point" in lines
 
-    def test_the_distribution_name_can_differ_from_the_namespace(self, manifest):
+    def test_the_distribution_name_is_what_scaffolds_the_extension(self, manifest):
         lines = "\n".join(report(manifest(), "moose", "moose-agent"))
-        assert 'moose-agent = "moose:__name__"' in lines
+        assert "axi ext init moose-agent" in lines
 
 
 class TestDecisionsItRefusesToMake:
@@ -239,3 +244,57 @@ class TestWhatTheFirstRealProjectLookedLike:
             source="import nonexistent_dependency\ngraph = b.compile(checkpointer=m)\n",
         )
         assert "checkpointer in code" in "\n".join(report(m, "x", "x"))
+
+
+class TestTheHookIsTheOneThePlatformActuallyCalls:
+    """The port used to print an entry point that does not exist.
+
+    It told people to add ``[project.entry-points."axiom.skills"]``. Nothing
+    reads that group. Following the instructions exactly would have produced a
+    port that succeeded, an entry point that did nothing, and capabilities that
+    never registered — with nothing anywhere saying so.
+
+    The real mechanism is AEOS layout: the platform imports an extension's
+    ``skills`` package and calls ``bind_default()`` if it is there.
+    """
+
+    def test_the_generated_module_exposes_bind_default(self, manifest):
+        """The name is the contract. Rename it and nothing registers, silently."""
+        module = build_registration_module(manifest(), "moose")
+        assert "def bind_default(" in module
+
+    def test_bind_default_binds_into_the_process_default_registry(self, tmp_path):
+        """``skills_emit`` calls it with no arguments and reads the default
+        registry afterwards. Anything else registers into a registry nobody
+        looks at."""
+        import importlib.util
+
+        from axiom.infra.skills import default_registry
+
+        root = tmp_path / "proj"
+        (root / "pkg").mkdir(parents=True)
+        (root / "langgraph.json").write_text(
+            json.dumps({"graphs": {"solver": "./pkg/graph.py:g"}})
+        )
+        (root / "pkg" / "graph.py").write_text("g = None\n")
+        target = root / "pkg" / "caps.py"
+        target.write_text(build_registration_module(root / "langgraph.json", "portns"))
+
+        spec = importlib.util.spec_from_file_location("portns_caps", target)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+
+        returned = module.bind_default()
+
+        assert returned is default_registry()
+        assert default_registry().spec("portns.solver") is not None
+
+    def test_it_does_not_advertise_an_entry_point_that_nothing_reads(self, manifest):
+        lines = "\n".join(report(manifest(), "moose", "moose"))
+        assert "axiom.skills" not in lines
+
+    def test_it_says_discovery_is_by_directory(self, manifest):
+        """The failure mode is silent, so the instructions have to name it."""
+        lines = "\n".join(report(manifest(), "moose", "moose"))
+        assert "axi ext init" in lines
+        assert "bind_default" in lines

@@ -59,6 +59,10 @@ here re-describes a graph; the manifest stays the single declaration and this
 module is regenerated from it.
 
     python -m axiom_ext_langgraph.port {manifest} --namespace {namespace}
+
+Drop this into your extension's ``skills`` package. The platform imports that
+package and calls ``bind_default()``; that is the hook, and it is why the
+function below has that name rather than a nicer one.
 """
 
 from pathlib import Path
@@ -89,8 +93,22 @@ def _find_manifest():
 
 
 def register_all(registry):
-    """Entry point for ``axiom.skills``. Returns the capability names."""
+    """Register every declared graph into ``registry``. Returns the names."""
     return skills_from_langgraph_json(registry, _find_manifest(), namespace=NAMESPACE)
+
+
+def bind_default():
+    """What the platform calls. Binds into the process-wide default registry.
+
+    The name is the contract: ``axiom.infra.skills_emit`` imports an
+    extension's ``skills`` package and calls ``bind_default`` if it is there.
+    Rename this and the capabilities register nowhere, silently.
+    """
+    from axiom.infra.skills import default_registry
+
+    registry = default_registry()
+    register_all(registry)
+    return registry
 '''
 
 
@@ -146,17 +164,21 @@ def report(manifest: Path, namespace: str, distribution: str) -> list[str]:
         "generated SKILL.md from that single registration (ADR-072), plus an audit",
         "record and the caller's identity. None of that needs code.",
         "",
-        "Add to pyproject.toml:",
+        "How the platform finds them:",
         "",
-        '  [project.entry-points."axiom.portfolio_member"]',
-        f"  {distribution} = \"{namespace}:__name__\"",
+        "  1. Your project has to be an AEOS extension — a directory with an",
+        f"     axiom-extension.toml. Scaffold one with:  axi ext init {distribution}",
         "",
-        '  [project.entry-points."axiom.skills"]',
-        f"  {distribution} = \"{namespace}.axiom_capabilities:register_all\"",
+        "  2. Put the generated module in that extension's skills package, as",
+        f"     <ext>/skills/{namespace}_graphs.py, and import it from",
+        "     <ext>/skills/__init__.py so bind_default() is reachable there.",
         "",
-        "Both are required. The portfolio one is an authority boundary rather than",
-        "paperwork: loading an entry point means importing and calling your code, so",
-        "a distribution that does not declare membership is skipped and logged.",
+        "  3. That is the whole hook. The platform imports the skills package and",
+        "     calls bind_default(). There is no entry point to add.",
+        "",
+        "Discovery is by directory, not by entry point. A distribution that is not",
+        "laid out as an extension is never scanned, and nothing will say so — the",
+        "capabilities simply will not exist.",
         "",
     ]
 
