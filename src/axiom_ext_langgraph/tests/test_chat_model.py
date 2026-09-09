@@ -239,3 +239,60 @@ def test_no_tools_sends_none_rather_than_an_empty_list():
     _model(gateway).invoke([HumanMessage("hi")])
 
     assert gateway.calls[0]["tools"] is None
+
+
+# --- attribution: the fourth single ------------------------------------------
+
+
+def test_the_bound_principal_reaches_the_gateway(monkeypatch):
+    """The model call is attributed, not just the graph around it.
+
+    AGENTS.md recorded this as a platform gap for as long as the gateway had no
+    principal parameter. It has one now, and it resolves
+    ``principal or _resolve_actor_handle()``. This asserts the shim supplies the
+    first half rather than relying on the second, because that fallback swallows
+    every failure by design: if resolution broke, attribution would quietly
+    become None and the record would say *unattributed* rather than fail.
+    """
+    import axiom_ext_langgraph.chat_model as cm
+
+    monkeypatch.setattr(cm, "_current_principal_handle", lambda: "@nima:netl")
+
+    gateway = FakeGateway()
+    _model(gateway).invoke([("user", "hello")])
+
+    assert gateway.calls[0]["principal"] == "@nima:netl"
+
+
+def test_an_unbound_actor_is_passed_as_none_not_invented(monkeypatch):
+    """Nothing bound means nothing claimed.
+
+    A public call from an unattributed process is legitimate and is recorded as
+    unattributed. Substituting a placeholder handle would be a fake attribution,
+    which is worse than an absent one.
+    """
+    import axiom_ext_langgraph.chat_model as cm
+
+    monkeypatch.setattr(cm, "_current_principal_handle", lambda: None)
+
+    gateway = FakeGateway()
+    _model(gateway).invoke([("user", "hello")])
+
+    assert gateway.calls[0]["principal"] is None
+
+
+def test_resolution_failure_does_not_break_the_call():
+    """axiom.governance is absent in this suite by design, and that is fine.
+
+    The whole point of resolving defensively is that a shim whose tests need the
+    world stops being run. With governance unavailable the handle is None and the
+    call proceeds as unattributed.
+    """
+    import axiom_ext_langgraph.chat_model as cm
+
+    assert cm._current_principal_handle() is None
+
+    gateway = FakeGateway()
+    _model(gateway).invoke([("user", "hello")])
+
+    assert gateway.calls[0]["principal"] is None
