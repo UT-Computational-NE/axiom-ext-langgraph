@@ -77,6 +77,10 @@ log = logging.getLogger(__name__)
 #: Where a chat-shaped graph takes its input. ``create_agent`` graphs use this.
 DEFAULT_INPUT_KEY = "messages"
 
+#: Directory name that means "source root", not "package". Stripped when
+#: rewriting a declared file path into an import path.
+SOURCE_ROOT = "src"
+
 
 class LangGraphManifestError(ValueError):
     """A ``langgraph.json`` could not be read, or says something we cannot port.
@@ -158,6 +162,17 @@ class GraphPort:
         ``./pkg/agent.py:graph`` becomes ``pkg.agent:graph``. The file-path form
         is LangGraph's; Axiom resolves an import path, and the two differ only
         in spelling.
+
+        A leading ``src/`` is dropped, because ``src`` is a source root rather
+        than a package in the layout that uses it: ``./src/react_agent/graph.py``
+        is imported as ``react_agent.graph``. This is not hypothetical tidiness.
+        The first real project tried against this tool is a src-layout one, and
+        without the strip every ported capability would resolve to a module that
+        does not exist.
+
+        The strip happens even when ``src/__init__.py`` is present, which it
+        sometimes is by accident. Packaging decides what is importable, and no
+        packaging configuration in the wild exposes ``src`` itself as a package.
         """
         file_part, _, attr = self.path.partition(":")
         if not attr:
@@ -165,14 +180,57 @@ class GraphPort:
                 f"graph {self.name!r} declares {self.path!r}, which names no object. "
                 "LangGraph's form is 'path/to/file.py:object'."
             )
-        module = (
-            Path(file_part)
-            .with_suffix("")
-            .as_posix()
-            .lstrip("./")
-            .replace("/", ".")
-        )
-        return f"{module}:{attr}"
+        parts = [
+            part
+            for part in Path(file_part).with_suffix("").as_posix().split("/")
+            if part not in ("", ".")
+        ]
+        if parts and parts[0] == SOURCE_ROOT:
+            parts = parts[1:]
+        if not parts:
+            raise LangGraphManifestError(
+                f"graph {self.name!r} declares {self.path!r}, which names no module."
+            )
+        return f"{'.'.join(parts)}:{attr}"
+
+    def target(self, root: Path) -> Path:
+        """Where the declared file should be, relative to the project root."""
+        file_part, _, _ = self.path.partition(":")
+        return (root / file_part).resolve()
+
+    def compiles_with_a_checkpointer(self, root: Path) -> bool:
+        """Whether the declared source compiles the graph with a checkpointer.
+
+        A heuristic, and said to be one wherever it is reported. It reads the
+        declared file for ``checkpointer=`` rather than importing it, because
+        importing a research project's graph module pulls in its whole
+        dependency tree and often its credentials.
+
+        It exists because the manifest's own ``checkpointer`` key is not where
+        this usually lives. The first real project tried against this tool
+        declares nothing in the manifest and does
+        ``builder.compile(checkpointer=memory)`` on line 274, which is the
+        second state store the port most needs to talk about, and a
+        manifest-only check sails straight past it.
+        """
+        target = self.target(root)
+        if not target.exists():
+            return False
+        try:
+            return "checkpointer=" in target.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return False
+
+    def missing_from(self, root: Path) -> bool:
+        """Whether the declaration points at a file that is not there.
+
+        Worth checking at port time rather than leaving to first call. A
+        manifest inherited from a project template and never updated still
+        parses, still ports, and produces a capability that fails only when
+        somebody invokes it — by which point the port is "done" and the failure
+        looks like ours.
+        """
+        return not self.target(root).exists()
 
     def __repr__(self) -> str:
         return f"GraphPort({self.name!r}, {self.path!r})"

@@ -137,8 +137,13 @@ class TestTheGeneratedModule:
 
 class TestCli:
     def test_it_writes_the_module_when_asked(self, manifest, tmp_path, capsys):
+        m = manifest()
+        target = m.parent / "moose_agent" / "agent.py"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text("graph = None\n")
+
         out = tmp_path / "pkg" / "axiom_capabilities.py"
-        code = main([str(manifest()), "--namespace", "moose", "--write", str(out)])
+        code = main([str(m), "--namespace", "moose", "--write", str(out)])
 
         assert code == 0
         assert out.exists()
@@ -154,3 +159,83 @@ class TestCli:
     def test_a_missing_manifest_does_not_traceback(self, tmp_path, capsys):
         assert main([str(tmp_path / "nope.json"), "--namespace", "m"]) == 1
         assert "cannot port" in capsys.readouterr().err
+
+
+class TestWhatTheFirstRealProjectLookedLike:
+    """Both checks below exist because a real repo had both problems.
+
+    The public proxy for the project this tool was built for declares
+    ``./src/react_agent/graph.py:graph`` in a manifest inherited from the
+    LangGraph react-agent template, while its actual code lives in
+    ``src/mooseagent/``, and it compiles its graph with a checkpointer in code
+    rather than in the manifest. Neither was caught by the first version.
+    """
+
+    def _project(self, tmp_path, declared, *, create=None, source=""):
+        root = tmp_path / "proj"
+        (root / "src" / "pkg").mkdir(parents=True)
+        (root / "langgraph.json").write_text(json.dumps({"graphs": {"g": declared}}))
+        if create:
+            target = root / create
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(source)
+        return root / "langgraph.json"
+
+    def test_a_src_layout_path_becomes_an_importable_module(self, tmp_path):
+        """``src`` is a source root, not a package."""
+        from axiom_ext_langgraph.graphs import read_langgraph_manifest
+
+        m = self._project(tmp_path, "./src/pkg/graph.py:graph", create="src/pkg/graph.py")
+        assert read_langgraph_manifest(m)[0].entry == "pkg.graph:graph"
+
+    def test_a_manifest_pointing_at_nothing_stops_the_port(self, tmp_path, capsys):
+        """It parses, it ports, and it fails only when somebody calls it."""
+        m = self._project(tmp_path, "./src/gone/graph.py:graph")
+
+        assert main([str(m), "--namespace", "x"]) == 2
+        assert "Refusing to generate" in capsys.readouterr().err
+
+    def test_the_report_names_the_file_that_is_not_there(self, tmp_path):
+        m = self._project(tmp_path, "./src/gone/graph.py:graph")
+        lines = "\n".join(report(m, "x", "x"))
+
+        assert "MISSING" in lines
+        assert "STOP." in lines
+        assert "src/gone/graph.py" in lines
+
+    def test_force_ports_ahead_of_the_code(self, tmp_path):
+        m = self._project(tmp_path, "./src/gone/graph.py:graph")
+        assert main([str(m), "--namespace", "x", "--force"]) == 0
+
+    def test_a_checkpointer_compiled_in_code_is_flagged(self, tmp_path):
+        """The manifest key is not where this usually lives."""
+        m = self._project(
+            tmp_path,
+            "./src/pkg/graph.py:graph",
+            create="src/pkg/graph.py",
+            source="graph = builder.compile(checkpointer=memory)\n",
+        )
+        lines = "\n".join(report(m, "x", "x"))
+
+        assert "checkpointer in code" in lines
+        assert "ApprovalGate" in lines
+
+    def test_a_graph_without_one_is_not_flagged(self, tmp_path):
+        """Advice that always fires is advice nobody reads."""
+        m = self._project(
+            tmp_path,
+            "./src/pkg/graph.py:graph",
+            create="src/pkg/graph.py",
+            source="graph = builder.compile()\n",
+        )
+        assert "checkpointer in code" not in "\n".join(report(m, "x", "x"))
+
+    def test_the_detection_reads_rather_than_imports(self, tmp_path):
+        """Importing a research graph pulls its whole dependency tree."""
+        m = self._project(
+            tmp_path,
+            "./src/pkg/graph.py:graph",
+            create="src/pkg/graph.py",
+            source="import nonexistent_dependency\ngraph = b.compile(checkpointer=m)\n",
+        )
+        assert "checkpointer in code" in "\n".join(report(m, "x", "x"))

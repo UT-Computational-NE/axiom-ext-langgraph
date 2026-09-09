@@ -50,7 +50,7 @@ from axiom_ext_langgraph.graphs import (
     read_langgraph_manifest,
 )
 
-__all__ = ["build_registration_module", "main", "report"]
+__all__ = ["build_registration_module", "has_missing_targets", "main", "report"]
 
 _MODULE_TEMPLATE = '''"""Axiom capability registration, generated from langgraph.json.
 
@@ -108,6 +108,9 @@ def report(manifest: Path, namespace: str, distribution: str) -> list[str]:
     ports = read_langgraph_manifest(manifest)
     raw = json.loads(manifest.read_text(encoding="utf-8"))
 
+    root = manifest.parent
+    missing = [p for p in ports if p.missing_from(root)]
+
     lines = [
         f"Porting {manifest} to Axiom capabilities under namespace {namespace!r}.",
         "",
@@ -115,8 +118,28 @@ def report(manifest: Path, namespace: str, distribution: str) -> list[str]:
         "",
     ]
     for p in ports:
-        lines.append(f"  {p.name:<20} {p.path}")
+        flag = "  MISSING" if p in missing else ""
+        lines.append(f"  {p.name:<20} {p.path}{flag}")
         lines.append(f"  {'':<20} -> {namespace}.{p.name}   (entry {p.entry})")
+
+    if missing:
+        lines += [
+            "",
+            "STOP. These declarations point at files that are not there:",
+            "",
+        ]
+        for p in missing:
+            lines.append(f"  {p.name}: {p.target(root)}")
+        lines += [
+            "",
+            "A manifest inherited from a project template and never updated parses",
+            "cleanly, ports cleanly, and produces a capability that fails only when",
+            "somebody calls it. By then the port is 'done' and the failure looks like",
+            "the platform's. Fix langgraph.json first, then re-run this.",
+            "",
+            "This is not a rare case. It is what the first real project tried against",
+            "this tool looked like.",
+        ]
     lines += [
         "",
         "Each one gains a CLI verb, an MCP tool, an agent-facing function and a",
@@ -138,6 +161,18 @@ def report(manifest: Path, namespace: str, distribution: str) -> list[str]:
     ]
 
     decisions: list[str] = []
+    in_code = [p.name for p in ports if p.compiles_with_a_checkpointer(root)]
+    if in_code:
+        decisions.append(
+            "  checkpointer in code: "
+            + ", ".join(in_code)
+            + "\n    compile(checkpointer=...) appears in the graph's own source, which\n"
+            "    is where this usually lives rather than in the manifest. That is a\n"
+            "    second state store. Ported, the pause belongs on the platform's\n"
+            "    ApprovalGate, which is durable and is the single record of what was\n"
+            "    allowed; two of them fork that record and a safety case cannot cite\n"
+            "    both. Read as text, not imported, so treat it as a prompt to look."
+        )
     if raw.get("checkpointer"):
         decisions.append(
             "  checkpointer: your manifest configures one, so these graphs expect to\n"
@@ -168,6 +203,12 @@ def report(manifest: Path, namespace: str, distribution: str) -> list[str]:
     return lines
 
 
+def has_missing_targets(manifest: Path) -> bool:
+    """Whether any declared graph points at a file that is not there."""
+    root = Path(manifest).parent
+    return any(p.missing_from(root) for p in read_langgraph_manifest(Path(manifest)))
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m axiom_ext_langgraph.port",
@@ -183,6 +224,11 @@ def main(argv: list[str] | None = None) -> int:
         "--distribution",
         default="",
         help="distribution name for the entry points (default: the namespace)",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="generate even when a declared graph file is missing",
     )
     parser.add_argument(
         "--write",
@@ -201,6 +247,14 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     print("\n".join(lines))
+
+    if has_missing_targets(args.manifest) and not args.force:
+        print(
+            "\nRefusing to generate a registration for a manifest whose graphs are "
+            "not there. Pass --force if you are porting ahead of the code.",
+            file=sys.stderr,
+        )
+        return 2
 
     module = build_registration_module(args.manifest, args.namespace)
     if args.write:
