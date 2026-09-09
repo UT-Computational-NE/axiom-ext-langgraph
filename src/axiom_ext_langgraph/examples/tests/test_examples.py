@@ -192,24 +192,23 @@ def test_ask_reports_what_the_agent_did_not_only_what_it_said():
     assert out["turns"] == 2
 
 
+@pytest.mark.graph
 def test_the_example_prefers_the_current_agent_constructor():
     """Nobody should learn a deprecated idiom from a file meant to teach.
 
     ``create_react_agent`` moved to ``langchain.agents.create_agent`` in
-    LangChain 1.0 and goes away in LangGraph 2.0. The example prefers the new
-    one and falls back only for an environment carrying ``langgraph`` alone.
+    LangChain 1.0 and goes away in LangGraph 2.0.
 
-    This assertion was dormant until ``[graph]`` began installing ``langchain``:
-    the import below failed, the test returned early, and the preference it
-    exists to pin was never checked.
+    Two gates, both load-bearing, and the second was missing at first. The
+    marker keeps this out of the core-only unit job, which installs neither
+    backend. The ``importorskip`` is what makes the assertion below
+    unconditional: the earlier version called ``_agent_constructor()`` and then
+    returned early when ``langchain`` was absent, so in the one environment it
+    ran in it asserted nothing, and in the environment it could not run in it
+    raised ``ModuleNotFoundError`` instead of skipping.
     """
+    pytest.importorskip("langchain.agents", reason="needs langchain, not just core")
+
     from axiom_ext_langgraph.examples.with_tools import _agent_constructor
 
-    chosen = _agent_constructor()
-
-    assert chosen.__name__ in ("create_agent", "create_react_agent")
-    try:
-        from langchain.agents import create_agent  # noqa: F401
-    except ImportError:
-        return
-    assert chosen.__name__ == "create_agent", "prefer the current API when it is available"
+    assert _agent_constructor().__name__ == "create_agent"
