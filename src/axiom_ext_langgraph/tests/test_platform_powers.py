@@ -23,6 +23,29 @@ import pytest
 from axiom_ext_langgraph.tools import tools_from_registry
 
 
+def _needs_principal_conversion():
+    """Skip unless the platform can turn a handle into a bindable Principal.
+
+    ``acting_as`` converts through ``axiom.governance.principal_from_handle``.
+    Where that is absent — a platform release predating it — the shim falls
+    back to binding what it was handed, ``get_current_actor`` refuses a
+    non-Principal, and the handle reads back as None.
+
+    That fallback is deliberate and keeps an older platform working, but it
+    means these assertions describe a capability the environment may not have.
+    Skipping names the missing piece; failing would report the shim as broken
+    when it is the platform that is older.
+    """
+    governance = pytest.importorskip("axiom.governance", reason="needs the platform")
+    if not hasattr(governance, "principal_from_handle"):
+        pytest.skip(
+            "this platform has no governance.principal_from_handle, so a handle "
+            "cannot be converted into a bindable Principal (axiom "
+            "feat/durable-approval-gate adds it)"
+        )
+    return governance
+
+
 @pytest.fixture
 def platform():
     """A registry with a read verb, a write verb, and one that is CLI-only."""
@@ -147,6 +170,7 @@ class TestIdentityReachesTheToolCall:
         """The graph's principal has to survive into the capability it calls,
         or the audit record names the process instead of the person."""
         skills = pytest.importorskip("axiom.infra.skills")
+        _needs_principal_conversion()
         pc = pytest.importorskip("axiom.infra.principal")
         from axiom_ext_langgraph.actor import acting_as
         from axiom_ext_langgraph.chat_model import _current_principal_handle
