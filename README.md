@@ -39,17 +39,26 @@ own dependency graph.
 ## Use
 
 ```python
-from langgraph.prebuilt import create_react_agent
+from langchain.agents import create_agent
 from axiom_ext_langgraph import AxiomChatModel, acting_as, tools_from_registry
 
 model = AxiomChatModel(routing_tier="export_controlled")
 tools = tools_from_registry(registry, ["data.install", "telemetry.series"])
 
-agent = create_react_agent(model, tools)
+agent = create_agent(model, tools)
 
 with acting_as(principal):
     result = agent.invoke({"messages": [("user", "what happened on Tuesday?")]})
 ```
+
+`create_react_agent` from `langgraph.prebuilt` still works and is what most
+tutorials show, but it moved to `langchain.agents.create_agent` in LangGraph 1.0
+and goes away in 2.0. `examples/with_tools.py` prefers the new one and falls
+back, because the `[graph]` extra installs `langgraph` without `langchain`.
+
+Runnable versions of this live in `src/axiom_ext_langgraph/examples/`. Start
+with `ask_once` (one model call, no tools) and then `with_tools`. Their tests
+need no gateway, no network and no credentials, so you can iterate on a laptop.
 
 Every model call in that graph goes through the gateway. There is no
 configuration that lets it reach a provider directly.

@@ -138,6 +138,25 @@ def _to_ai_message(response: Any) -> AIMessage:
     )
 
 
+def _current_principal_handle() -> str | None:
+    """The handle of whatever ``acting_as`` bound, or None.
+
+    Mirrors the gateway's own resolution rather than reimplementing it: the same
+    ``axiom.governance`` context, read at the same moment. Returns None when
+    nothing is bound, which the gateway then handles exactly as it would for any
+    other unattributed caller.
+
+    Resolved lazily and defensively so the whole suite still runs with only
+    ``langchain-core`` installed, per this repo's testing convention.
+    """
+    try:
+        from axiom.governance import get_current_actor
+
+        return get_current_actor().handle
+    except Exception:
+        return None
+
+
 class AxiomChatModel(BaseChatModel):
     """A LangChain chat model backed by the Axiom gateway.
 
@@ -224,6 +243,12 @@ class AxiomChatModel(BaseChatModel):
 
         system, history = _to_gateway_messages(messages)
 
+        # Pass the bound actor explicitly rather than leaning on the gateway's
+        # fallback. The gateway does ``actor = principal or _resolve_actor_handle()``
+        # and that fallback deliberately swallows every failure, which is right
+        # for a hot path nobody has bound an identity on and wrong to depend on:
+        # if resolution broke, attribution would quietly become None and the
+        # record would say unattributed rather than say anything at all.
         response = self._get_gateway().complete_with_tools(
             messages=history,
             system=system,
@@ -232,6 +257,7 @@ class AxiomChatModel(BaseChatModel):
             task=kwargs.get("task", self.task),
             routing_tier=kwargs.get("routing_tier", self.routing_tier),
             prefer=kwargs.get("prefer", self.prefer),
+            principal=_current_principal_handle(),
         )
 
         if not getattr(response, "success", False):

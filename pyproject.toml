@@ -27,7 +27,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-graph = ["langgraph >= 0.2"]
+# ``create_agent`` lives in ``langchain``, not ``langgraph``, since LangChain
+# 1.0. An extra that installed only ``langgraph`` left the current constructor
+# absent in an environment that satisfied this package's own declared deps, so
+# the test preferring it silently skipped its real assertion.
+graph = ["langgraph >= 0.2", "langchain >= 1.0"]
 test = ["pytest", "pytest-timeout", "ruff"]
 dev = ["axiom-ext-langgraph[graph,test]"]
 

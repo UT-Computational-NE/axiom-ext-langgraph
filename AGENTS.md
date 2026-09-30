@@ -17,7 +17,7 @@ difference is whether there stays exactly one of each of four things:
 | 1 | **one LLM gateway** | done — `chat_model.py` |
 | 2 | **one state and audit record** | **not done, on purpose** — see below |
 | 3 | **one tool registry** | done — `tools.py` |
-| 4 | **one identity** | partial — `actor.py`, with a platform-side gap |
+| 4 | **one identity** | done — `actor.py`, and the gateway takes a principal since 2026-09-08 |
 
 If a change here would create a second of any of them, it is the wrong change,
 however convenient.
@@ -81,22 +81,35 @@ The seam is declared in `axiom-extension.toml` as a surface touched in mode
 
 ---
 
-## A known gap on the platform's side
+## The identity gap, closed 2026-09-08
 
-`acting_as` binds the actor for a graph run, and anything calling
-`get_current_actor()` sees it. **`axiom.llm.gateway` does not call it.** There is
-no principal parameter anywhere in the gateway, so the model call itself is not
-attributed even while the surrounding graph is.
+This section used to record a gap, and the record is kept because how it closed
+is the point.
 
-Binding here is therefore necessary and not yet sufficient. Single number four
-is not fully satisfied, and no amount of work in this repo will satisfy it — the
-gateway has to accept a principal. That is the platform's half of the identity
-seam, and it should be fixed there rather than faked here.
+It said: `acting_as` binds the actor for a graph run and anything calling
+`get_current_actor()` sees it, but **`axiom.llm.gateway` does not call it** —
+there was no principal parameter anywhere in the gateway, so the model call
+itself was unattributed even while the surrounding graph was. It said no amount
+of work in this repo could satisfy single number four, that the gateway had to
+accept a principal, and that it should be fixed there rather than faked here.
 
-Do not paper over this by, for example, stuffing a principal into `routing_tags`.
-A tag is not an identity, and a fake attribution is worse than an absent one.
+It was fixed there. `complete_with_tools` now takes `principal`, and resolves
+`principal or _resolve_actor_handle()`, where that fallback reads the same
+`axiom.governance` context `acting_as` writes. So a graph run is attributed end
+to end, and single number four is satisfied.
 
----
+**This package passes the principal explicitly anyway**, rather than leaning on
+the fallback. The fallback deliberately swallows every failure, which is correct
+for a hot path on a host where nobody has bound an identity, and wrong to depend
+on: if resolution broke, attribution would quietly become `None` and the record
+would say *unattributed* rather than say anything at all. Passing it explicitly
+means a bound identity that fails to resolve is a visible problem rather than an
+invisible downgrade.
+
+The instinct worth keeping from the original note: it named the gap, refused to
+fake it, and said whose half it was. Do not paper over a platform gap by, for
+example, stuffing a principal into `routing_tags`. A tag is not an identity, and
+a fake attribution is worse than an absent one.
 
 ## Conventions
 
