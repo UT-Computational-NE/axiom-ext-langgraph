@@ -23,7 +23,7 @@ jobs:
       # No --select here on purpose: the rule set lives in pyproject.toml so the
       # repo lints identically in CI and on a laptop.
       - name: Run ruff
-        run: ruff check src/
+        run: ruff check axiom_ext_langgraph tests
 
   unit-tests:
     name: Unit Tests (${{ matrix.python-version }})
@@ -39,14 +39,16 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      # Deliberately NOT installing axiom. The whole suite runs with only
-      # langchain-core present, because every platform dependency is injectable.
-      # If a test ever needs axiom installed, that is a design regression here,
-      # not a CI gap — fix the seam rather than the workflow.
+      # The shim's own tests take their dependencies as parameters. They do
+      # not need a configured platform. The test extra installs axiom-tests,
+      # the AEOS conformance plugin, which is not the platform. A test that
+      # needs a live gateway is a design regression — fix the seam.
       - name: Install (test extras, no platform)
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[test]"
+          # AEOS standard suite. Not the platform, and not on PyPI.
+          pip install "axiom-tests @ git+https://github.com/b-tree-labs/axiom-os.git@0216abc984c071ddf56f625ad7b8076ed34fe58d#subdirectory=packages/axiom-tests"
       - name: Run unit tests
         run: pytest -q --tb=short --timeout=60
 
@@ -64,6 +66,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
+          pip install "axiom-tests @ git+https://github.com/b-tree-labs/axiom-os.git@0216abc984c071ddf56f625ad7b8076ed34fe58d#subdirectory=packages/axiom-tests"
       # Proves AxiomChatModel satisfies the contract a real prebuilt graph
       # expects, which unit tests against langchain-core alone cannot show.
       - name: Build and run a graph against a stub gateway

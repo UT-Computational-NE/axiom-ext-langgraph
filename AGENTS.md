@@ -22,6 +22,12 @@ difference is whether there stays exactly one of each of four things:
 If a change here would create a second of any of them, it is the wrong change,
 however convenient.
 
+The **toolkit** (`axiom_ext_langgraph.toolkit`, plus the `cmd` / `tool` /
+`skill` blocks in the manifest) is what an agent or an operator invokes.
+The **library** (`axiom_ext_langgraph.library`) is the importable API that
+toolkit is built on. Those are the Axiom names for the two surfaces; AEOS
+itself names the capability kinds, not these two words.
+
 ---
 
 ## Fail closed, loudly
@@ -76,8 +82,21 @@ is a **platform primitive with an owner**, and it is the load-bearing mechanism
 of a research thrust that depends on it. Building it here would take that
 contribution rather than enable it.
 
-The seam is declared in `axiom-extension.toml` as a surface touched in mode
-`never`, so the gap is visible rather than assumed.
+The seam is declared in `axiom_ext_langgraph/surfaces.py` as a surface touched
+in mode `never`. The manifest schema rejects a shim table, so the declaration
+is a typed table rather than a second copy of the manifest. The gap stays
+visible.
+
+Graph inspection (`graphwork`) reads the drawable graph: nodes, edges, entry,
+exit, unreachable nodes, cycles, a Mermaid flowchart, and a dry-run that
+walks edges and does not call node functions. It does not list, inspect, or
+resume checkpoints.
+
+A host callable wrapped with `tool_from_host` submits to the `ApprovalGate`
+the caller passes and does not run until that gate returns `approved`. The
+`gate` verb and the `gate_host_call` tool ask the same function and do not
+run the callable. That is the platform's gate, recorded in the surface table
+as a write extension point, not a second queue and not a checkpointer.
 
 ---
 
@@ -124,9 +143,10 @@ not opened.
 
 **Tests take their dependencies as parameters.** `tool_from_skill` takes a
 registry; `AxiomChatModel` takes a `gateway_factory`; `acting_as` resolves
-`axiom.governance` lazily so a fake can be injected. The whole suite runs with
-only `langchain-core` installed. A shim whose tests need the world stops being
-run.
+`axiom.governance` lazily so a fake can be injected. The shim's own tests do
+not need a configured platform. `axiom-tests`, the AEOS conformance plugin,
+is installed beside the test extra from the pinned axiom-os commit in CI.
+It is not the platform. A shim whose tests need the world stops being run.
 
 **Private attributes are assigned normally, never with `object.__setattr__`.**
 Pydantic keeps them in `__pydantic_private__`; `object.__setattr__` puts a second
@@ -145,8 +165,9 @@ whatever directory it happens to sit under.
 
 ```bash
 python -m venv .venv && .venv/bin/pip install -e ".[dev]"
-.venv/bin/python -m pytest src/axiom_ext_langgraph/tests/ -q
-.venv/bin/python -m ruff check src/
+.venv/bin/pip install "axiom-tests @ git+https://github.com/b-tree-labs/axiom-os.git@0216abc984c071ddf56f625ad7b8076ed34fe58d#subdirectory=packages/axiom-tests"
+.venv/bin/python -m pytest tests axiom_ext_langgraph/examples -q
+.venv/bin/python -m ruff check axiom_ext_langgraph tests
 ```
 
 ---

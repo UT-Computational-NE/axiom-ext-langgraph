@@ -11,6 +11,10 @@ difference is whether there stays exactly one of each of four things:
 3. **one tool registry** — :mod:`~axiom_ext_langgraph.tools`
 4. **one identity** — :mod:`~axiom_ext_langgraph.actor`
 
+The toolkit (:mod:`~axiom_ext_langgraph.toolkit`) is what an agent or an
+operator calls. The library (:mod:`~axiom_ext_langgraph.library`) is the
+importable API that toolkit is built on.
+
 With those single, a LangGraph run is a rendering of the platform's behaviour.
 With any doubled, the split is real and the framework's name is irrelevant.
 
@@ -53,9 +57,23 @@ _LAZY = {
     "read_langgraph_manifest": "axiom_ext_langgraph.graphs",
     "skill_from_graph": "axiom_ext_langgraph.graphs",
     "skills_from_langgraph_json": "axiom_ext_langgraph.graphs",
+    "AxiomToolkit": "axiom_ext_langgraph.toolkit",
+    "ProjectSkills": "axiom_ext_langgraph.toolkit",
     "SkillInvocationError": "axiom_ext_langgraph.tools",
     "tool_from_skill": "axiom_ext_langgraph.tools",
     "tools_from_registry": "axiom_ext_langgraph.tools",
+    "START": "axiom_ext_langgraph.graphwork",
+    "END": "axiom_ext_langgraph.graphwork",
+    "GraphShape": "axiom_ext_langgraph.graphwork",
+    "inspect_graph": "axiom_ext_langgraph.graphwork",
+    "validate_graph": "axiom_ext_langgraph.graphwork",
+    "dry_run": "axiom_ext_langgraph.graphwork",
+    "to_mermaid": "axiom_ext_langgraph.graphwork",
+    "shape_from_document": "axiom_ext_langgraph.graphwork",
+    "shape_from_compiled": "axiom_ext_langgraph.graphwork",
+    "HostToolHeld": "axiom_ext_langgraph.host_tool",
+    "decide_host_call": "axiom_ext_langgraph.host_tool",
+    "tool_from_host": "axiom_ext_langgraph.host_tool",
 }
 
 if TYPE_CHECKING:  # pragma: no cover — for type checkers and editors only
@@ -73,6 +91,19 @@ if TYPE_CHECKING:  # pragma: no cover — for type checkers and editors only
         skill_from_graph,
         skills_from_langgraph_json,
     )
+    from axiom_ext_langgraph.graphwork import (
+        END,
+        START,
+        GraphShape,
+        dry_run,
+        inspect_graph,
+        shape_from_compiled,
+        shape_from_document,
+        to_mermaid,
+        validate_graph,
+    )
+    from axiom_ext_langgraph.host_tool import HostToolHeld, decide_host_call, tool_from_host
+    from axiom_ext_langgraph.toolkit import AxiomToolkit, ProjectSkills
     from axiom_ext_langgraph.tools import (
         SkillInvocationError,
         tool_from_skill,
@@ -95,19 +126,33 @@ def __dir__() -> list[str]:
 
 
 __all__ = [
+    "END",
     "ROUTING_TIER_ENV",
+    "START",
     "AxiomChatModel",
     "AxiomGatewayUnavailable",
+    "AxiomToolkit",
     "GraphPort",
     "GraphResolutionError",
+    "GraphShape",
+    "HostToolHeld",
     "LangGraphManifestError",
+    "ProjectSkills",
     "SkillInvocationError",
     "acting_as",
     "current_actor",
+    "decide_host_call",
+    "dry_run",
     "enforce_no_external_tracing",
+    "inspect_graph",
     "read_langgraph_manifest",
+    "shape_from_compiled",
+    "shape_from_document",
     "skill_from_graph",
     "skills_from_langgraph_json",
+    "to_mermaid",
+    "tool_from_host",
     "tool_from_skill",
     "tools_from_registry",
+    "validate_graph",
 ]

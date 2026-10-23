@@ -111,7 +111,7 @@ def test_generate_re_enforces_before_egress(monkeypatch) -> None:
     from langchain_core.messages import HumanMessage
 
     from axiom_ext_langgraph.chat_model import AxiomChatModel
-    from axiom_ext_langgraph.tests.test_chat_model import FakeGateway
+    from tests.unit_tests.test_chat_model import FakeGateway
 
     class _AssertingGateway(FakeGateway):
         def complete_with_tools(self, **kwargs: object):
