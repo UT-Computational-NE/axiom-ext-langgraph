@@ -16,12 +16,12 @@ The AEOS manifest schema closes the root. `[[shim.surface]]` does not validate. 
 
 This extension ships both:
 
-- Toolkit: `AxiomToolkit`, `project_skills`, `axi langgraph port`, `langgraph.report`.
-- Library: `axiom_ext_langgraph.library`, which is also the package's public API.
+- Toolkit: `AxiomToolkit`, `project_skills`, `axi langgraph` (`port`, `inspect`, `validate`, `mermaid`, `dry-run`, `gate`), `langgraph.report`, and the graph and gate tools.
+- Library: `axiom_ext_langgraph.library`, which is also the package's public API. The command and the tools call that library; they do not carry a second implementation.
 
 Shim surfaces move to `axiom_ext_langgraph.surfaces.SURFACES`. The checkpoint store remains mode `never`.
 
-`aeos_version` is `0.2.0`, the version `axi ext init` stamps. AEOS 1.0 does not govern extension conformance while it is in draft.
+`aeos_version` is `0.1.0`. That is the version the AEOS 0.1 spec, the linter's remediation text, and `axiom.extensions.scaffold` all name as the spec an extension conforms to. Chain level A is the default in §4.11.1 and does not require the 0.2 draft. The CLI scaffold template stamps `0.2.0` together with `chain_level = "B"`, which is the claim that does require 0.2. This extension claims A and does not ship a recipe, so it does not follow that stamp. AEOS 1.0 does not govern extension conformance while it is in draft.
 
 ## Consequences
 

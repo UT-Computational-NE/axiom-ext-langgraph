@@ -87,6 +87,17 @@ in mode `never`. The manifest schema rejects a shim table, so the declaration
 is a typed table rather than a second copy of the manifest. The gap stays
 visible.
 
+Graph inspection (`graphwork`) reads the drawable graph: nodes, edges, entry,
+exit, unreachable nodes, cycles, a Mermaid flowchart, and a dry-run that
+walks edges and does not call node functions. It does not list, inspect, or
+resume checkpoints.
+
+A host callable wrapped with `tool_from_host` submits to the `ApprovalGate`
+the caller passes and does not run until that gate returns `approved`. The
+`gate` verb and the `gate_host_call` tool ask the same function and do not
+run the callable. That is the platform's gate, recorded in the surface table
+as a write extension point, not a second queue and not a checkpointer.
+
 ---
 
 ## The identity gap, closed 2026-09-08

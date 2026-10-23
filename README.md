@@ -9,7 +9,7 @@ The extension is two surfaces:
 - The **toolkit** is what an agent or an operator invokes.
 - The **library** is the importable API that toolkit is built on.
 
-`aeos_version` is `0.2.0`. Chain level is A.
+`aeos_version` is `0.1.0`. Chain level is A. AEOS 0.2 is a draft amendment this extension does not require.
 
 ## The four singles
 
@@ -30,6 +30,8 @@ flowchart TB
     AT["AxiomToolkit"]
     PS["project_skills"]
     PORT["axi langgraph port"]
+    INSPECT["inspect, validate, mermaid, dry-run"]
+    GATE["axi langgraph gate"]
     REP["langgraph.report"]
   end
 
@@ -39,6 +41,8 @@ flowchart TB
     READ["read_langgraph_manifest"]
     REG["skills_from_langgraph_json"]
     ADAPT["skill_from_graph"]
+    SHAPE["graphwork"]
+    HOST["tool_from_host"]
     MODEL["AxiomChatModel"]
     ACTOR["acting_as"]
   end
@@ -47,6 +51,8 @@ flowchart TB
   PROJ --> NAME
   PS --> NAME
   PORT --> REG
+  INSPECT --> SHAPE
+  GATE --> HOST
   REP --> READ
   REG --> READ
   REG --> ADAPT
@@ -103,7 +109,7 @@ This is a standalone extension (`builtin = false`), purpose-named `axiom_ext_lan
 
 ```mermaid
 flowchart TB
-  manifest["axiom-extension.toml<br/>AEOS 0.2 · chain level A"]
+  manifest["axiom-extension.toml<br/>AEOS 0.1.0 · chain level A"]
 
   manifest --> cmd["kind cmd<br/>noun langgraph<br/>verb port"]
   manifest --> tool["kind tool<br/>project_skills"]
@@ -165,6 +171,42 @@ axi langgraph port langgraph.json --namespace moose
 ```
 
 That is `python -m axiom_ext_langgraph.port`. Each declared graph becomes the capability `moose.<graph>`. The registration opts into the `cli`, `mcp`, `agent_tool`, and `skill_md` surfaces, and the platform projects those from the one skill. The report skill returns the names and leaves the registry alone.
+
+### Inspect a graph
+
+`inspect_graph`, `validate_graph`, `to_mermaid`, and `dry_run` are one implementation. The command, the tools, and the library call it. A document is nodes and edges. `__start__` and `__end__` are the sentinels LangGraph uses, not nodes.
+
+```bash
+axi langgraph inspect graph.json
+axi langgraph validate graph.json
+axi langgraph mermaid graph.json
+axi langgraph dry-run graph.json --choice a=stop
+```
+
+`validate` exits 0 when the graph is sound and 1 when it is not. A cycle is reported. It does not by itself fail a graph that also has an exit: a tool loop is a normal agent graph. An unreachable node, a dead end, a missing entry, or an edge to an undeclared node does fail it. `dry-run` walks edges and does not call node functions. At a conditional edge it stops unless `--choice` names the branch.
+
+```python
+from axiom_ext_langgraph import dry_run, inspect_graph, shape_from_compiled, to_mermaid
+
+report = inspect_graph(shape_from_compiled(compiled))
+print(to_mermaid(shape_from_compiled(compiled)))
+print(dry_run(shape_from_compiled(compiled), choices={"agent": "tools"}))
+```
+
+`shape_from_compiled` reads `get_graph()`. It does not read a checkpointer.
+
+### A host tool through the approval gate
+
+```python
+from axiom.infra.orchestrator.approval import ApprovalGate
+from axiom_ext_langgraph import tool_from_host
+
+tool = tool_from_host(publish, "doc_publish", gate=ApprovalGate(), inputs={"source": "str"})
+```
+
+`doc_publish` is a write in the platform's action registry, so the first call submits it and raises `HostToolHeld` without calling `publish`. After `gate.approve(held.action_id, decided_by="...")`, a second call with the same parameters and that `approval_id` runs `publish` once and records the action completed. A name the registry does not list is a write, which is the registry's own default. A resume whose parameters differ from the approved ones does not run.
+
+`axi langgraph gate --name doc_publish --params '{"source": "docs/a.md"}'` asks the platform file queue and does not run a callable. `gate_host_call` is that ask as a tool. The platform projects it to MCP. This extension does not publish a second MCP server.
 
 ## It fails closed
 

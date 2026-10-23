@@ -61,6 +61,17 @@ SURFACES: tuple[Surface, ...] = (
         ),
     ),
     Surface(
+        name="axiom.infra.orchestrator.approval.ApprovalGate",
+        mode="write-extension-point",
+        note=(
+            "A host callable wrapped as a LangChain tool submits an action to "
+            "the gate the caller passes and does not run until that gate "
+            "returns approved. The CLI and the gate_host_call tool ask the "
+            "same gate and do not run the callable. This is the platform's "
+            "gate, not a second queue."
+        ),
+    ),
+    Surface(
         name="langgraph checkpoint store",
         mode="never",
         note=(

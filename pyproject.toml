@@ -35,6 +35,11 @@ Homepage = "https://github.com/UT-Computational-NE/axiom-ext-langgraph"
 # manifest `entry` values.
 [project.entry-points."axiom.tools"]
 project_skills = "axiom_ext_langgraph.tools.project_skills:ProjectSkills"
+inspect_graph = "axiom_ext_langgraph.tools.inspect_graph:InspectGraph"
+validate_graph = "axiom_ext_langgraph.tools.validate_graph:ValidateGraph"
+graph_mermaid = "axiom_ext_langgraph.tools.graph_mermaid:GraphMermaid"
+dry_run_graph = "axiom_ext_langgraph.tools.dry_run_graph:DryRunGraph"
+gate_host_call = "axiom_ext_langgraph.tools.gate_host_call:GateHostCall"
 
 [project.entry-points."axiom.commands"]
 langgraph = "axiom_ext_langgraph.commands.langgraph:cli"

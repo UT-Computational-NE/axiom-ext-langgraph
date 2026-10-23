@@ -76,7 +76,7 @@ def test_manifest_matches_pyproject_and_entry_points():
     pyproject = _load(_ROOT / "pyproject.toml")
     ext = manifest["extension"]
     project = pyproject["project"]
-    assert ext["aeos_version"] == "0.2.0"
+    assert ext["aeos_version"] == "0.1.0"
     assert ext["version"] == project["version"]
     assert ext["description"] == project["description"]
     assert project["name"].replace("-", "_") == ext["name"]

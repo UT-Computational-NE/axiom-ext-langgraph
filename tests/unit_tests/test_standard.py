@@ -32,11 +32,13 @@ def _manifest() -> dict:
         return tomllib.load(handle)
 
 
-def _provides(kind: str) -> dict:
+def _provides(kind: str, name: str | None = None) -> dict:
     for block in _manifest()["extension"]["provides"]:
-        if block.get("kind") == kind:
+        if block.get("kind") != kind:
+            continue
+        if name is None or block.get("name") == name or block.get("noun") == name:
             return block
-    raise AssertionError(f"no provides block of kind {kind}")
+    raise AssertionError(f"no provides block of kind {kind} name {name}")
 
 
 class TestAxiomExtLanggraphStandard(ExtensionStandardTests):
@@ -90,7 +92,71 @@ class TestLanggraphCommand(CommandTests):
 
     @property
     def expected_subcommands(self) -> tuple[str, ...]:
-        return ("port",)
+        return ("port", "inspect", "validate", "mermaid", "dry-run", "gate")
+
+
+class _GraphTool(ToolTests):
+    tool_path = ""
+    tool_name = ""
+
+    @pytest.fixture
+    def tool_class(self) -> type:
+        module_name, _, class_name = self.tool_path.partition(":")
+        import importlib
+
+        return getattr(importlib.import_module(module_name), class_name)
+
+    @pytest.fixture
+    def tool_manifest_block(self) -> dict:
+        return _provides("tool", self.tool_name)
+
+    @property
+    def idempotent(self) -> bool:
+        return True
+
+    @property
+    def side_effects(self) -> str:
+        return "none"
+
+
+class TestInspectGraphTool(_GraphTool):
+    tool_path = "axiom_ext_langgraph.tools.inspect_graph:InspectGraph"
+    tool_name = "inspect_graph"
+
+
+class TestValidateGraphTool(_GraphTool):
+    tool_path = "axiom_ext_langgraph.tools.validate_graph:ValidateGraph"
+    tool_name = "validate_graph"
+
+
+class TestGraphMermaidTool(_GraphTool):
+    tool_path = "axiom_ext_langgraph.tools.graph_mermaid:GraphMermaid"
+    tool_name = "graph_mermaid"
+
+
+class TestDryRunGraphTool(_GraphTool):
+    tool_path = "axiom_ext_langgraph.tools.dry_run_graph:DryRunGraph"
+    tool_name = "dry_run_graph"
+
+
+class TestGateHostCallTool(ToolTests):
+    @pytest.fixture
+    def tool_class(self) -> type:
+        from axiom_ext_langgraph.tools.gate_host_call import GateHostCall
+
+        return GateHostCall
+
+    @pytest.fixture
+    def tool_manifest_block(self) -> dict:
+        return _provides("tool", "gate_host_call")
+
+    @property
+    def idempotent(self) -> bool:
+        return False
+
+    @property
+    def side_effects(self) -> str:
+        return "mutates_state"
 
 
 class TestReportSkill(SkillTests):
