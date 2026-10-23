@@ -11,6 +11,10 @@ difference is whether there stays exactly one of each of four things:
 3. **one tool registry** — :mod:`~axiom_ext_langgraph.tools`
 4. **one identity** — :mod:`~axiom_ext_langgraph.actor`
 
+The toolkit (:mod:`~axiom_ext_langgraph.toolkit`) is what an agent or an
+operator calls. The library (:mod:`~axiom_ext_langgraph.library`) is the
+importable API that toolkit is built on.
+
 With those single, a LangGraph run is a rendering of the platform's behaviour.
 With any doubled, the split is real and the framework's name is irrelevant.
 
@@ -53,6 +57,8 @@ _LAZY = {
     "read_langgraph_manifest": "axiom_ext_langgraph.graphs",
     "skill_from_graph": "axiom_ext_langgraph.graphs",
     "skills_from_langgraph_json": "axiom_ext_langgraph.graphs",
+    "AxiomToolkit": "axiom_ext_langgraph.toolkit",
+    "ProjectSkills": "axiom_ext_langgraph.toolkit",
     "SkillInvocationError": "axiom_ext_langgraph.tools",
     "tool_from_skill": "axiom_ext_langgraph.tools",
     "tools_from_registry": "axiom_ext_langgraph.tools",
@@ -73,6 +79,7 @@ if TYPE_CHECKING:  # pragma: no cover — for type checkers and editors only
         skill_from_graph,
         skills_from_langgraph_json,
     )
+    from axiom_ext_langgraph.toolkit import AxiomToolkit, ProjectSkills
     from axiom_ext_langgraph.tools import (
         SkillInvocationError,
         tool_from_skill,
@@ -98,9 +105,11 @@ __all__ = [
     "ROUTING_TIER_ENV",
     "AxiomChatModel",
     "AxiomGatewayUnavailable",
+    "AxiomToolkit",
     "GraphPort",
     "GraphResolutionError",
     "LangGraphManifestError",
+    "ProjectSkills",
     "SkillInvocationError",
     "acting_as",
     "current_actor",

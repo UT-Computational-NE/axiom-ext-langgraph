@@ -1,0 +1,79 @@
+# Copyright (c) 2026 The University of Texas at Austin and B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# mcp: not-applicable -- projects the one skill registry onto LangGraph and does not publish a second MCP server
+#
+# LangGraph/LangChain harness shim. Per ADR-044 this is a standalone
+# repository: specific to one foreign runtime, and hosting it must cost
+# Axiom nothing in its own dependency graph.
+#
+# Surfaces this shim touches are the typed table in
+# axiom_ext_langgraph/surfaces.py (ADR-099). The manifest schema rejects a
+# shim table at the root, so the declaration lives in code.
+
+[extension]
+name = "axiom_ext_langgraph"
+version = "0.1.0"
+description = "Run LangChain and LangGraph through the Axiom gateway, so a foreign runtime inherits one gateway, one tool registry and one identity"
+license = "Apache-2.0"
+owner = "ut-austin"
+repository = "https://github.com/UT-Computational-NE/axiom-ext-langgraph"
+aeos_version = "0.2.0"
+# Level A: the report skill declares risk, and we do not claim the Level B
+# chain checks, which the platform verifier owns. See spec-aeos-0.1 §4.11 and §12.4.
+chain_level = "A"
+builtin = false
+
+[extension.compatibility]
+python = ">=3.11"
+axiom = ">=0.15"
+
+# This extension produces no measured or modelled values (ADR-136).
+[extension.uncertainty]
+posture = "not-applicable"
+
+# The operator verb. Implementation is axiom_ext_langgraph.port, not a second porter.
+[[extension.provides]]
+kind = "cmd"
+noun = "langgraph"
+entry = "axiom_ext_langgraph.commands.langgraph:cli"
+description = "Port a LangGraph project onto the one Axiom skill registry."
+subcommands = ["port"]
+tier = "core"
+intent_groups = ["build"]
+
+# Declarative half of the toolkit: skill descriptors in, surface-safe tool specs out.
+[[extension.provides]]
+kind = "tool"
+name = "project_skills"
+entry = "axiom_ext_langgraph.tools.project_skills:ProjectSkills"
+description = "Project declared Axiom skills into LangChain-facing tool specs without calling a model or registering anything."
+idempotent = true
+side_effects = "none"
+
+# Read-only report. Registration is the port verb.
+[[extension.provides]]
+kind = "skill"
+name = "langgraph.report"
+entry = "axiom_ext_langgraph.skills.impl:report"
+path = "axiom_ext_langgraph/skills/report"
+description = "Read a langgraph.json and report the capability names it would become. Does not register them."
+risk = "read"
+side_effects = false
+idempotent = true
+surfaces = ["cli", "skill_md"]
+requires = []
+
+[[extension.consumes]]
+kind = "core"
+package = "axiom-os-lm"
+version = ">=0.15"
+
+[extension.signing]
+required = true
+methods = ["sigstore"]
+publisher_identity = "UT-Computational-NE/axiom-ext-langgraph"
+
+[extension.testing]
+standard_tests = ["unit"]
+test_base_class = "axiom_tests.unit_tests.ExtensionStandardTests"

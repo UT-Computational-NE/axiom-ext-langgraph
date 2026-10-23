@@ -36,6 +36,17 @@ pip install "axiom-ext-langgraph[graph]" # adds langgraph itself
 Axiom's. That is the point: hosting LangGraph costs the platform nothing in its
 own dependency graph.
 
+## Toolkit and library
+
+Axiom's split: a **toolkit** is what an agent or an operator invokes, and a
+**library** is the importable API that toolkit is built on.
+
+The toolkit is `AxiomToolkit` (LangChain tools from the one skill registry),
+the `project_skills` tool, `axi langgraph port`, and the read-only
+`langgraph.report` skill. The library is `axiom_ext_langgraph.library`: the
+chat model, the actor binding, the projection, and the graph port. The
+package root exports both.
+
 ## Use
 
 ```python
@@ -56,7 +67,7 @@ tutorials show, but it moved to `langchain.agents.create_agent` in LangGraph 1.0
 and goes away in 2.0. `examples/with_tools.py` prefers the new one and falls
 back, because the `[graph]` extra installs `langgraph` without `langchain`.
 
-Runnable versions of this live in `src/axiom_ext_langgraph/examples/`. Start
+Runnable versions of this live in `axiom_ext_langgraph/examples/`. Start
 with `ask_once` (one model call, no tools) and then `with_tools`. Their tests
 need no gateway, no network and no credentials, so you can iterate on a laptop.
 
@@ -103,8 +114,9 @@ time-bounded checkpoint is a **platform primitive with an owner**, and it is the
 load-bearing mechanism of a research thrust that depends on it. Building it here
 would take that contribution rather than enable it.
 
-The seam is declared in `axiom-extension.toml` as a surface this shim touches
-in mode `never`, so the gap is visible rather than assumed.
+The seam is declared in `axiom_ext_langgraph/surfaces.py` as a surface this
+shim touches in mode `never`, so the gap is visible rather than assumed.
+The manifest schema does not allow a shim table.
 
 ## Status
 
