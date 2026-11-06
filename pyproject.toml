@@ -26,17 +26,38 @@ dependencies = [
     "langchain-core >= 0.3",
 ]
 
+[project.urls]
+Repository = "https://github.com/UT-Computational-NE/axiom-ext-langgraph"
+Homepage = "https://github.com/UT-Computational-NE/axiom-ext-langgraph"
+
+# Capability entry points. One per [[extension.provides]] block whose kind
+# has an entry-point group (tools, commands). Keep these equal to the
+# manifest `entry` values.
+[project.entry-points."axiom.tools"]
+project_skills = "axiom_ext_langgraph.tools.project_skills:ProjectSkills"
+inspect_graph = "axiom_ext_langgraph.tools.inspect_graph:InspectGraph"
+validate_graph = "axiom_ext_langgraph.tools.validate_graph:ValidateGraph"
+graph_mermaid = "axiom_ext_langgraph.tools.graph_mermaid:GraphMermaid"
+dry_run_graph = "axiom_ext_langgraph.tools.dry_run_graph:DryRunGraph"
+gate_host_call = "axiom_ext_langgraph.tools.gate_host_call:GateHostCall"
+
+[project.entry-points."axiom.commands"]
+langgraph = "axiom_ext_langgraph.commands.langgraph:cli"
+
 [project.optional-dependencies]
 # ``create_agent`` lives in ``langchain``, not ``langgraph``, since LangChain
 # 1.0. An extra that installed only ``langgraph`` left the current constructor
 # absent in an environment that satisfied this package's own declared deps, so
 # the test preferring it silently skipped its real assertion.
 graph = ["langgraph >= 0.2", "langchain >= 1.0"]
+# axiom-tests is not on PyPI, so it is not an extra: a direct reference here
+# is rejected by the build backend and by PyPI. CI installs the pinned
+# commit beside this extra. See .github/workflows/ci.yml.
 test = ["pytest", "pytest-timeout", "ruff"]
 dev = ["axiom-ext-langgraph[graph,test]"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/axiom_ext_langgraph"]
+packages = ["axiom_ext_langgraph"]
 
 [tool.pytest.ini_options]
 markers = [

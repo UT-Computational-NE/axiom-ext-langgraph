@@ -42,6 +42,7 @@ from pydantic import Field, create_model
 __all__ = [
     "AGENT_TOOL_SURFACE",
     "SkillInvocationError",
+    "surface_name",
     "tool_from_skill",
     "tools_from_registry",
 ]
@@ -50,6 +51,16 @@ logger = logging.getLogger(__name__)
 
 #: The surface name a skill opts into to be projectable as an agent tool.
 AGENT_TOOL_SURFACE = "agent_tool"
+
+
+def surface_name(name: str) -> str:
+    """The function-calling name of a capability.
+
+    Dots are not valid in a LangChain tool name. This is the spelling
+    ``tool_from_skill`` and :class:`ProjectSkills` both use, so the live
+    toolkit and the declarative tool cannot drift.
+    """
+    return name.replace(".", "_")
 
 
 class SkillInvocationError(RuntimeError):
@@ -133,7 +144,7 @@ def tool_from_skill(
 
     return StructuredTool.from_function(
         func=_invoke,
-        name=name.replace(".", "_"),
+        name=surface_name(name),
         description=description or getattr(spec, "description", "") or f"Axiom skill {name}",
         **kwargs,
     )

@@ -1,0 +1,8 @@
+axiom-ext-langgraph
+Copyright 2026 The University of Texas at Austin and B-Tree Labs
+
+This product includes software developed at The University of Texas at Austin
+and B-Tree Labs.
+
+LangChain and LangGraph are separately licensed projects. This package does
+not redistribute them.

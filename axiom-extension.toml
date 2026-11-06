@@ -1,0 +1,121 @@
+# Copyright (c) 2026 The University of Texas at Austin and B-Tree Labs
+# SPDX-License-Identifier: Apache-2.0
+
+# mcp: not-applicable -- projects the one skill registry onto LangGraph and does not publish a second MCP server
+#
+# LangGraph/LangChain harness shim. Per ADR-044 this is a standalone
+# repository: specific to one foreign runtime, and hosting it must cost
+# Axiom nothing in its own dependency graph.
+#
+# Surfaces this shim touches are the typed table in
+# axiom_ext_langgraph/surfaces.py (ADR-099). The manifest schema rejects a
+# shim table at the root, so the declaration lives in code.
+
+[extension]
+name = "axiom_ext_langgraph"
+version = "0.1.0"
+description = "Run LangChain and LangGraph through the Axiom gateway, so a foreign runtime inherits one gateway, one tool registry and one identity"
+license = "Apache-2.0"
+owner = "ut-austin"
+repository = "https://github.com/UT-Computational-NE/axiom-ext-langgraph"
+aeos_version = "0.1.0"
+# Level A is the default in spec-aeos-0.1 §4.11.1. Claiming B or C would
+# require aeos_version >= 0.2. This extension does not: it ships no recipe,
+# and chain level A does not use a 0.2-only feature. The explicit field is
+# the spec's own 0.1.0 example.
+chain_level = "A"
+builtin = false
+
+[extension.compatibility]
+python = ">=3.11"
+axiom = ">=0.15"
+
+# This extension produces no measured or modelled values (ADR-136).
+[extension.uncertainty]
+posture = "not-applicable"
+
+# The operator verb. Implementation is axiom_ext_langgraph.port, not a second porter.
+[[extension.provides]]
+kind = "cmd"
+noun = "langgraph"
+entry = "axiom_ext_langgraph.commands.langgraph:cli"
+description = "Port, inspect, and gate LangGraph work on the one Axiom platform."
+subcommands = ["port", "inspect", "validate", "mermaid", "dry-run", "gate"]
+tier = "core"
+intent_groups = ["build"]
+
+# Declarative half of the toolkit: skill descriptors in, surface-safe tool specs out.
+[[extension.provides]]
+kind = "tool"
+name = "project_skills"
+entry = "axiom_ext_langgraph.tools.project_skills:ProjectSkills"
+description = "Project declared Axiom skills into LangChain-facing tool specs without calling a model or registering anything."
+idempotent = true
+side_effects = "none"
+
+[[extension.provides]]
+kind = "tool"
+name = "inspect_graph"
+entry = "axiom_ext_langgraph.tools.inspect_graph:InspectGraph"
+description = "Report the nodes, edges, entries, exits, unreachable nodes, and cycles of a graph document."
+idempotent = true
+side_effects = "none"
+
+[[extension.provides]]
+kind = "tool"
+name = "validate_graph"
+entry = "axiom_ext_langgraph.tools.validate_graph:ValidateGraph"
+description = "Validate a graph document: unreachable nodes and dead ends fail it; a cycle is reported and does not, by itself, fail it."
+idempotent = true
+side_effects = "none"
+
+[[extension.provides]]
+kind = "tool"
+name = "graph_mermaid"
+entry = "axiom_ext_langgraph.tools.graph_mermaid:GraphMermaid"
+description = "Render a graph document as a Mermaid flowchart."
+idempotent = true
+side_effects = "none"
+
+[[extension.provides]]
+kind = "tool"
+name = "dry_run_graph"
+entry = "axiom_ext_langgraph.tools.dry_run_graph:DryRunGraph"
+description = "Trace the steps a graph document would take. Does not run node functions."
+idempotent = true
+side_effects = "none"
+
+[[extension.provides]]
+kind = "tool"
+name = "gate_host_call"
+entry = "axiom_ext_langgraph.tools.gate_host_call:GateHostCall"
+description = "Submit a host call to the platform approval gate and report whether it may run. Does not run the call."
+idempotent = false
+side_effects = "mutates_state"
+
+# Read-only report. Registration is the port verb.
+[[extension.provides]]
+kind = "skill"
+name = "langgraph.report"
+entry = "axiom_ext_langgraph.skills.impl:report"
+path = "axiom_ext_langgraph/skills/report"
+description = "Read a langgraph.json and report the capability names it would become. Does not register them."
+risk = "read"
+side_effects = false
+idempotent = true
+surfaces = ["cli", "skill_md"]
+requires = []
+
+[[extension.consumes]]
+kind = "core"
+package = "axiom-os-lm"
+version = ">=0.15"
+
+[extension.signing]
+required = true
+methods = ["sigstore"]
+publisher_identity = "UT-Computational-NE/axiom-ext-langgraph"
+
+[extension.testing]
+standard_tests = ["unit"]
+test_base_class = "axiom_tests.unit_tests.ExtensionStandardTests"

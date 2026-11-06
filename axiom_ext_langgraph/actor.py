@@ -11,12 +11,11 @@ run where "who asked for this" is easiest to lose and most expensive to lack.
 afterwards, so a graph invoked from inside another actor's session cannot leak
 its principal into the caller's context.
 
-**A known gap, stated plainly.** The actor context is ambient — anything that
-calls ``get_current_actor()`` sees it. ``axiom.llm.gateway`` does **not** call
-it: there is no principal parameter anywhere in the gateway, so the model call
-itself is not attributed even while the surrounding graph is. Binding here is
-therefore necessary and not yet sufficient. Closing it is a platform change on
-the gateway's side of this seam, not something a shim can fake. See AGENTS.md.
+The actor context is ambient — anything that calls ``get_current_actor()``
+sees it. The gateway also takes ``principal`` explicitly, and
+:class:`~axiom_ext_langgraph.chat_model.AxiomChatModel` passes the bound
+handle on every call rather than leaning on the gateway's fallback. See
+AGENTS.md. A tag is not an identity, and this module does not invent one.
 """
 
 from __future__ import annotations
