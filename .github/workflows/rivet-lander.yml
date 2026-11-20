@@ -33,7 +33,9 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: b-tree-labs/axiom-os/actions/rivet-land@v0.70.40
+      - uses: b-tree-labs/axiom-os/actions/rivet-land@rivet-land-v1
         with:
           owner: benjaminbooth
+          kill-switch: ${{ vars.AXIOM_LANDER_KILL }}
+          release-lock: ${{ vars.AXIOM_RELEASE_LOCK }}
           # Export-controlled code: no model key is passed, so the tier-1 fixer stays off.
