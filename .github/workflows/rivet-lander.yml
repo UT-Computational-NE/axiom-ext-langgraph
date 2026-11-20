@@ -38,4 +38,6 @@ jobs:
           owner: benjaminbooth
           kill-switch: ${{ vars.AXIOM_LANDER_KILL }}
           release-lock: ${{ vars.AXIOM_RELEASE_LOCK }}
+          app-id: ${{ vars.RIVET_APP_ID }}
+          app-private-key: ${{ secrets.RIVET_APP_PRIVATE_KEY }}
           # Export-controlled code: no model key is passed, so the tier-1 fixer stays off.
