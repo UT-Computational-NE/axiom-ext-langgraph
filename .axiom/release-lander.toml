@@ -60,7 +60,7 @@ check_name = "RIVET"
 approval_ttl_hours = 72
 # --act refuses to run with an empty roster. This name is the ledger approver,
 # not a GitHub review posted as that person.
-approvers = ["your-github-login"]
+approvers = ["@benjaminbooth:github"]
 # Live land path. The review hold runs before any merge. Remove "merge" to
 # make the repo report-only whatever the act input says.
 auto_allowed = ["merge", "rerun", "update_branch", "repair"]
