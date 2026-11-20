@@ -65,11 +65,27 @@ approvers = ["@benjaminbooth:github"]
 # make the repo report-only whatever the act input says.
 auto_allowed = ["merge", "rerun", "update_branch", "repair"]
 
+[fixer]
+enabled = true
+max_attempts = 2
+max_turns = 16
+routing_tier = "public"
+
+[fixer.commands]
+test = "python -m pytest -q {tests}"
+
 [human_paths]
-# Regexes; a match holds the pull request for a human.
+# Narrowed to the standard set (Ben, 2026-11-20; first narrowed in soilmetrix
+# 2026-10-27). replace mode: this list IS the protected set; the built-in list
+# no longer applies. A human approves only where a green CI run cannot judge
+# the cost of a mistake: money, credentials, production data, production
+# deploys. Docs about these topics, CI workflows, test setup, dependency
+# bumps (dependency-audit ratchet + Boot Smoke + production smoke gate them)
+# and "behavior" paths land on green like any other change.
 pricing = [
   '^(?!docs/)(.*/)?(pricing|billing|stripe)(/|$)',
   '^(?!docs/)(.*/)?[^/]*(pricing|billing|stripe)[^/]*\.(py|jsx?|tsx?)$',
+  '(^|/)tier_service\.py$',
 ]
 security = [
   '^(?!docs/)(.*/)?(security|auth|secrets?)(/|$)',
@@ -77,18 +93,10 @@ security = [
 ]
 data = [
   '(^|/)migrations?(/|$)',
+  '(^|/)schema(/|$)',
   '\.sql$',
 ]
 deploy = [
-  '(^|/)\.github/workflows/[^/]*(deploy|release|promote|terraform)[^/]*$',
+  '(^|/)\.github/workflows/[^/]*(deploy|release|publish|promote|terraform)[^/]*$',
+  '^infrastructure/terraform/environments/(prod|stg)/',
 ]
-
-# Tier-1 fixer (axiom-os-private #2147): a routed model repairs lint, config and
-# failing-test blockers through a fixed tool set, then RIVET lands the fix on green.
-# Export-controlled code: the fixer stays OFF and the workflow passes no model key.
-[fixer]
-enabled = false
-routing_tier = "export_controlled"
-
-[fixer.commands]
-test = "python -m pytest -q {tests}"
